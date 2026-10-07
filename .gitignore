@@ -1,0 +1,30 @@
+# Secrets: never commit keys
+.env
+.env.*
+!.env.example
+
+# Your research is private and lives outside this repository.
+# These rules are a safety net in case a store is created here by mistake.
+research/
+conclave-research/
+*.sqlite
+*.sqlite-journal
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

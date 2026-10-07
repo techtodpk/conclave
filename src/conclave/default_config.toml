@@ -1,0 +1,66 @@
+# Conclave configuration.
+# Written by `conclave init`. Edit freely; `conclave config` shows what is in effect.
+
+[store]
+# Where your research lives. Keep it OUTSIDE the Conclave code repository,
+# and in its own private Git repository if you want history and backup.
+path = "~/conclave-research"
+
+[run]
+default_profile = "balanced"
+# "quick" asks the profile's chairman plus your store.
+# "full" runs the whole council: research, critique, verify, synthesize.
+default_mode = "quick"
+# How many key claims the Verify stage checks in a full run.
+claims_checked = 8
+
+[budget]
+# Spending limits in US dollars. A run that reaches its cap stops before the
+# next stage and saves what it has. When the monthly cap is reached, new full
+# runs are refused and quick runs still work.
+full_run_usd = 0.75
+quick_run_usd = 0.05
+monthly_usd = 15.00
+
+# --- Profiles -----------------------------------------------------------------
+# A profile names the council: the members who answer and review each other,
+# the chairman who writes the final page, and the checker who verifies claims.
+#
+# Model names are OpenRouter ids as listed in October 2026. Ids change, so check
+# them against https://openrouter.ai/models before your first run.
+#
+# route = "api"  calls the model through OpenRouter (needs OPENROUTER_API_KEY).
+# route = "cli"  calls the vendor's own command-line tool on your own
+#                subscription. Personal use only; check your plan's terms.
+#                (CLI routes arrive in milestone 7.)
+#
+# Pick members from different vendors. Models from one lab tend to share blind
+# spots, and `conclave config` warns when two members share a vendor.
+
+[profiles.lean]
+members = [
+    { model = "google/gemini-3.8-flash", route = "api" },
+    { model = "deepseek/deepseek-v4.1-flash", route = "api" },
+    { model = "openai/gpt-6.1-sol", route = "api" },
+]
+chairman = { model = "anthropic/claude-sonnet-5.5", route = "api" }
+checker = { model = "google/gemini-3.8-flash", route = "api" }
+
+[profiles.balanced]
+members = [
+    { model = "anthropic/claude-sonnet-5.5", route = "api" },
+    { model = "openai/gpt-6.1-sol", route = "api" },
+    { model = "google/gemini-3.8-flash", route = "api" },
+]
+chairman = { model = "anthropic/claude-sonnet-5.5", route = "api" }
+checker = { model = "anthropic/claude-sonnet-5.5", route = "api" }
+
+[profiles.full]
+members = [
+    { model = "anthropic/claude-sonnet-5.5", route = "api" },
+    { model = "openai/gpt-6.1-sol", route = "api" },
+    { model = "google/gemini-3.8-flash", route = "api" },
+    { model = "deepseek/deepseek-v4.1-flash", route = "api" },
+]
+chairman = { model = "anthropic/claude-opus-5.5", route = "api" }
+checker = { model = "anthropic/claude-sonnet-5.5", route = "api" }

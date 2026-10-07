@@ -1,0 +1,2 @@
+# Normalise line endings so the code checks out cleanly on Windows, macOS and Linux.
+* text=auto
