@@ -47,7 +47,7 @@ monthly_usd = 15.00
 # route = "api"  calls the model through OpenRouter (needs OPENROUTER_API_KEY).
 # route = "cli"  calls the vendor's own command-line tool on your own
 #                subscription. Personal use only; check your plan's terms.
-#                (CLI routes arrive in milestone 7.)
+#                (CLI routes arrive in milestone 8.)
 #
 # Pick members from different vendors. Models from one lab tend to share blind
 # spots, and `conclave config` warns when two members share a vendor.

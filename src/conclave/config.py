@@ -6,6 +6,7 @@ ship with the package are used, so every command works before `conclave init`.
 
 from __future__ import annotations
 
+import math
 import os
 import tomllib
 from collections import Counter
@@ -223,7 +224,12 @@ def _text(table: dict[str, Any], key: str, section: str) -> str:
 
 def _amount(table: dict[str, Any], key: str) -> float:
     value = table.get(key)
-    if isinstance(value, bool) or not isinstance(value, int | float) or value <= 0:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int | float)
+        or not math.isfinite(value)
+        or value <= 0
+    ):
         raise ConfigError(f"budget.{key} must be a number greater than 0")
     return float(value)
 

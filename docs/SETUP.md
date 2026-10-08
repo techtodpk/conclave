@@ -1,8 +1,106 @@
 # Setting up Conclave on your machine
 
-This guide takes you from nothing to asking your first question. It covers Windows, macOS and Linux.
+This guide takes you from nothing to asking your first question, on Windows, macOS or Linux. The README's [what works today](../README.md#what-works-today) table lists every capability.
 
-**What you can test today (milestone 4):** installing the tool, asking a question to one model or to a whole council, having the members review each other, reading the chairman's one-page answer, and building up a memory per topic that every later question on that topic starts from. The README's [what works today](../README.md#what-works-today) table lists every capability and when it arrives.
+There are two ways in:
+
+- **[Install the app](#install-the-app)**, if you do not write code. One copied command installs everything, and a setup in your browser does the rest.
+- **[Steps 1 to 15](#1-what-you-need)**, if you want the source code, the command line, or to change Conclave yourself.
+
+## Install the app
+
+**To try it without installing,** [open it in a GitHub Codespace](https://codespaces.new/techtodpk/conclave?quickstart=1): GitHub runs Conclave on a cloud computer and opens it in your browser, from your own GitHub account's free monthly allowance. Everything below is for installing it on your own computer, where your research stays.
+
+You need an internet connection and about five minutes. You do not need Python, Git or administrator rights; the installer gets what it needs and keeps it in your own user folder.
+
+### 1. Open a terminal window
+
+- **Windows:** press the Windows key, type `powershell`, and press Enter. A blue or black window opens.
+- **macOS:** press Cmd+Space, type `terminal`, and press Enter.
+- **Linux:** open your terminal app.
+
+### 2. Paste the install command and press Enter
+
+**Windows:**
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/techtodpk/conclave/main/install.ps1 | iex"
+```
+
+**macOS and Linux:**
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/techtodpk/conclave/main/install.sh | sh
+```
+
+The installer shows three steps: it gets uv (a small tool that keeps a private copy of Python just for Conclave), installs Conclave, and puts a **Conclave** shortcut on your desktop. The first time this takes one or two minutes. Then Conclave opens in your browser.
+
+`-ExecutionPolicy ByPass` lets PowerShell run this one installer without changing your computer's settings. You can read the installer first: [install.ps1](../install.ps1) and [install.sh](../install.sh).
+
+### 3. Follow the setup in your browser
+
+![The first setup screen](images/setup-welcome.png)
+
+The setup has five short steps:
+
+1. **Welcome.** What Conclave does and what it costs.
+2. **Research folder.** Where your questions and answers are kept. The default is a `conclave-research` folder in your home folder.
+3. **OpenRouter key.** OpenRouter is one account that reaches every AI model; you pay only for what you use. The screen walks you through it: sign in at [openrouter.ai/keys](https://openrouter.ai/keys), add about $5 of credit, create a key with a credit limit such as $10, and paste it in. Conclave checks the key with OpenRouter before saving it, and keeps it only on your computer.
+
+   ![Connecting the OpenRouter account](images/setup-key.png)
+
+4. **Council.** Which models answer. *Balanced* (Claude, GPT and Gemini) is a good start. You can build your own later.
+
+   ![Choosing a council](images/setup-council.png)
+
+5. **Spending limits.** The most one question and one month may cost. Conclave works out the most a question could cost before sending anything, and refuses it if that is over your limit.
+
+### 4. Ask a question
+
+![Asking the council](images/app-ask.png)
+
+Type a question and give it a **topic**: questions on the same topic build on each other. Choose **Quick** (one model, about 1 cent) or **Full council** (every member searches the web, they review each other, key claims are checked against the web pages they cite, and one page sums it up; usually 10 to 30 cents, one to two minutes).
+
+You can watch each stage as it happens:
+
+![A full council run in progress](images/app-progress.png)
+
+When it finishes you get the one-page answer. Every key claim carries a label: **verified** means a cited web page states it; **agreed but unchecked** means the members agreed but no page was checked; **single source**, **single model** and **disputed** are weaker.
+
+The other pages:
+
+| Page | What it shows |
+| --- | --- |
+| Topics | What the council has concluded on each topic, open disagreements, your own notes, and every past run |
+| Search | Everything the council has written, and your notes |
+| Spending | This month's total against your limit, every run's cost, and which models the others rank highest |
+| Settings | Your key, default council, spending limits, web search, and councils you build from OpenRouter's model list with live prices |
+
+![A topic's memory](images/app-topic.png)
+
+### 5. Next time
+
+Open Conclave from the **Conclave** shortcut on your desktop (on Windows, also in the Start menu). A small window opens beside your browser: keep it open while you use Conclave, and close it to stop Conclave. Opening the shortcut again while Conclave is running just brings the page back.
+
+### Update or remove the app
+
+- **Update:** run the same install command again. Your research, settings and key are kept.
+- **Remove:** run `uv tool uninstall conclave-council` in a terminal, and delete the Conclave shortcut. Your research folder and your settings (in the `.conclave` folder in your home folder) are left untouched; delete them yourself if you want them gone.
+
+### If the installer has a problem
+
+| Problem | Fix |
+| --- | --- |
+| Windows says scripts are disabled | Copy the whole command, including `powershell -ExecutionPolicy ByPass -c` at the start |
+| `uv could not be installed` | Check your internet connection. On a work computer, a firewall may block downloads from astral.sh or github.com |
+| The browser did not open | Open the Conclave shortcut, or go to http://127.0.0.1:8765 yourself |
+| `This app only answers requests addressed to this computer` | Use the address `http://127.0.0.1:8765`, not your computer's network name |
+| No shortcut on the desktop | Open a new terminal and run `conclave shortcut`. Or start Conclave with `conclave app` |
+| Something else | Run `conclave app` in a terminal and copy what it prints into an issue on GitHub. Remove your key from anything you paste |
+
+---
+
+The steps below are for developers and command-line users.
 
 ## 1. What you need
 
@@ -46,8 +144,10 @@ Your prompt now starts with `(.venv)`. You need to activate the environment agai
 ## 4. Install Conclave
 
 ```bash
-python -m pip install -e .
+python -m pip install -e ".[app]"
 ```
+
+`.[app]` adds the browser app; plain `.` installs the command line alone.
 
 The `-e` installs it in editable mode, so changes you make to the code take effect without reinstalling.
 
@@ -62,7 +162,7 @@ If the terminal says `conclave` is not recognised, use `python -m conclave --ver
 Expected output:
 
 ```
-conclave 0.4.0
+conclave 0.7.0
 ```
 
 ## 5. First run
@@ -256,7 +356,64 @@ To try a set of models once without saving a profile:
 conclave ask "your question" --members google/gemini-3.8-flash,openai/gpt-6.1-sol
 ```
 
-## 10. Where your files are kept
+## 10. Use Conclave from Claude Desktop and Cursor
+
+Conclave can run as an MCP server, so Claude Desktop, Cursor and other MCP clients can search your research store, read what the council concluded, and ask the council a question in the middle of a conversation.
+
+**1. Install the MCP extra**, from the Conclave folder:
+
+```bash
+python -m pip install -e ".[mcp]"
+```
+
+**2. Find the full path to your Python.** MCP clients do not see your terminal's PATH or virtual environment, so give them the exact Python that has Conclave installed:
+
+```bash
+python -c "import sys; print(sys.executable)"
+```
+
+On Windows this prints something like `C:\Users\you\AppData\Local\Python\pythoncore-3.14-64\python.exe`; with a virtual environment, something like `D:\code\conclave\.venv\Scripts\python.exe`.
+
+**3. Add Conclave to the client's config.** The entry is the same for both clients; only the file differs. Put your own Python path in `command`, writing each `\` in a Windows path as `\\`:
+
+```json
+{
+  "mcpServers": {
+    "conclave": {
+      "command": "C:\\Users\\you\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+      "args": ["-m", "conclave", "mcp"]
+    }
+  }
+}
+```
+
+| Client | Config file |
+| --- | --- |
+| Claude Desktop | Settings, then Developer, then Edit Config. The file is `%APPDATA%\Claude\claude_desktop_config.json` on Windows and `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS |
+| Cursor | `%USERPROFILE%\.cursor\mcp.json` on Windows and `~/.cursor/mcp.json` on macOS and Linux, for every project; or `.cursor/mcp.json` inside one project |
+
+If the file already has an `mcpServers` section, add the `"conclave": {...}` entry inside it. If your config file is not in the default place, add `"--config", "<path to config.toml>"` to `args`.
+
+**4. Restart the client completely.** In Claude Desktop, Conclave then appears under Connectors; in Cursor, under Settings, then Tools & MCP.
+
+**5. Try it.** Ask the assistant something like "What has my Conclave research concluded about processes and threads?" It should list your topics and read the `os` topic before answering.
+
+The server offers six tools:
+
+| Tool | What it does | Costs money |
+| --- | --- | --- |
+| `list_topics` | Every topic, with runs, claims and open disputes | No |
+| `search_research` | Full-text search of past questions, answers, summaries and notes | No |
+| `get_topic` | A topic's claims with their labels, open disputes, your notes and recent runs | No |
+| `get_run` | The saved one-page answer of a run, the latest by default | No |
+| `ask_council` | Runs a question. Quick by default; a full council run only when the assistant asks for it | Yes, within your caps |
+| `add_note` | Adds a note to a topic, marked as added by the assistant | No |
+
+Your budget caps apply to every `ask_council` call exactly as in the terminal, including the monthly cap. A full run takes one to two minutes, so the assistant waits for it. Notes an assistant adds end with "(added by Claude Desktop via MCP)" or similar, so you can tell them from your own and remove any you disagree with in `notes.md`.
+
+If the server does not appear, check the client's logs. Claude Desktop keeps them in `%APPDATA%\Claude\logs` on Windows and `~/Library/Logs/Claude` on macOS, in a file named `mcp-server-conclave.log`. The most common causes are a wrong Python path, the MCP extra not installed, and a JSON syntax error such as a single `\` in a Windows path.
+
+## 11. Where your files are kept
 
 | What | Default location | How to change it |
 | --- | --- | --- |
@@ -276,7 +433,7 @@ Keep the research store **outside** the Conclave code folder. Your research is p
 
 **What leaves your machine.** The store and everything in it stay on your disk. When you ask a question, the question and the topic's recalled memory (its claims, open disputes and your notes) are sent to OpenRouter and on to the model vendors you chose. In a full run, the search queries the members write go to OpenRouter's search provider, Exa, and the pages cited for claim checking are fetched directly from your machine, like opening them in a browser. Nothing else is sent. Use `--fresh` to leave out the memory, and `--no-search` to turn off searching and fetching.
 
-## 11. Change the settings
+## 12. Change the settings
 
 Open the config file in any text editor. It is commented throughout. The parts you are most likely to change:
 
@@ -287,7 +444,7 @@ Open the config file in any text editor. It is commented throughout. The parts y
 
 After editing, run `conclave config`. It either shows the new settings or tells you exactly which value is wrong.
 
-## 12. Run the tests
+## 13. Run the tests
 
 To check that the code works on your machine, install the development tools and run the three checks that CI runs:
 
@@ -300,7 +457,7 @@ pytest
 
 All tests should pass. They use a simulated OpenRouter, so they need no key, cost nothing and work offline.
 
-## 13. Troubleshooting
+## 14. Troubleshooting
 
 | Problem | Likely cause | Fix |
 | --- | --- | --- |
@@ -324,12 +481,14 @@ All tests should pass. They use a simulated OpenRouter, so they need no key, cos
 | A review's ranking `left out rather than guessed` | The model did not write its ranking in the expected form | Nothing to fix; that one ranking is left out of the averages. If it happens often with one model, choose another |
 | `... memory.json could not be read` | The topic's memory file was damaged, for example by a hand edit | Restore it from the store's Git history, or move it aside to start that topic's memory again. The runs are not affected |
 | A note or claim you expected is missing from the answer | The recalled memory is cut at about 12,000 characters | `conclave show <topic>` lists everything kept. Split a large topic into narrower ones |
+| `The MCP server needs the optional MCP package` | `conclave mcp` was started without the MCP extra | Run `python -m pip install -e ".[mcp]"` with the same Python your MCP client starts, then restart the client |
+| Conclave does not appear in Claude Desktop or Cursor | Wrong Python path, MCP extra missing, or invalid JSON in the client's config | Check step 10. Run the `command` and `args` from the config in a terminal yourself: it should wait silently for input (stop it with Ctrl+C) |
 | `Config problem: ...` | A value in the config file is invalid | The message names the setting and what it must be. Fix that line and run `conclave config` again |
 | You want to start over with the default config | | Rename or delete the config file, then run `conclave init`. Your research store is not touched |
 
 If something else goes wrong, open an issue with the command you ran, the full output, your operating system and your Python version. Remove your API key from anything you paste.
 
-## 14. Update or remove
+## 15. Update or remove
 
 **Update to the latest code**
 

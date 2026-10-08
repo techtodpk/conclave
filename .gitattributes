@@ -1,2 +1,6 @@
 # Normalise line endings so the code checks out cleanly on Windows, macOS and Linux.
 * text=auto
+
+# Shell scripts must keep Unix line endings, even when committed from Windows.
+*.sh text eol=lf
+*.ico binary

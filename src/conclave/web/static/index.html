@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Conclave</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div id="app" class="shell">
+    <aside class="sidebar" aria-label="Main">
+      <a class="brand" href="#/ask">
+        <img src="icon.svg" alt="" width="28" height="28">
+        <span>Conclave</span>
+      </a>
+      <nav>
+        <a href="#/ask" data-nav="ask"><span class="ico" aria-hidden="true">✦</span>Ask</a>
+        <a href="#/topics" data-nav="topics"><span class="ico" aria-hidden="true">▤</span>Topics</a>
+        <a href="#/search" data-nav="search"><span class="ico" aria-hidden="true">⌕</span>Search</a>
+        <a href="#/spending" data-nav="spending"><span class="ico" aria-hidden="true">$</span>Spending</a>
+        <a href="#/settings" data-nav="settings"><span class="ico" aria-hidden="true">⚙</span>Settings</a>
+      </nav>
+      <div class="sidebar-foot">
+        <div id="month-pill" class="pill" hidden></div>
+        <div id="running-pill" class="pill running" hidden><span class="spinner"></span> A question is running</div>
+        <div class="version" id="version"></div>
+      </div>
+    </aside>
+    <main id="view" tabindex="-1"></main>
+  </div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

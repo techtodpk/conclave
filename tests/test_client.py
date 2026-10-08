@@ -132,7 +132,7 @@ def test_network_failure_is_reported_after_retries(monkeypatch):
 
 
 def test_command_line_route_is_refused_for_now(openrouter):
-    with pytest.raises(ModelError, match="milestone 7"):
+    with pytest.raises(ModelError, match="milestone 8"):
         _complete(member=Member("anthropic/claude-sonnet-5.5", route="cli"))
 
     assert openrouter.chat_requests == []

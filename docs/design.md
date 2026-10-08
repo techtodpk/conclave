@@ -8,12 +8,12 @@ Conclave is a local tool that sends one question to several LLMs with web search
 
 | In v1 | Not in v1 |
 | --- | --- |
-| Command-line tool: `conclave ask "question" --topic name` | Web interface |
+| A local app in the browser, installed with one command (decision 0013), and the command line | A hosted web service |
 | Council members, chairman and checker chosen by the user and saved as profiles | Logging in to chat web apps with passwords |
 | Web search, cross-critique and claim checking on every full run | Vector database or embeddings |
 | Local research store in plain Markdown files with a search index | Reading the store from the ChatGPT app |
 | MCP server so Claude and Cursor read and write the same store | Multiple users or cloud sync |
-| Personal leaderboard built from the models' rankings of each other | Public benchmark ranking chart (milestone 8) |
+| Personal leaderboard built from the models' rankings of each other | Public benchmark ranking chart (milestone 9) |
 
 ## The six stages of a full run
 
@@ -33,10 +33,11 @@ A full run with N members makes 2N + 3 model calls: N answers, N reviews, two ch
 | Model client | Call any model, several in parallel, with or without web search | Two back ends behind one interface: an API caller for OpenRouter, and a subprocess runner for vendor command-line tools |
 | Council engine | Run the six stages and hold the prompts for each | Plain Python, one function per stage, prompts as text files |
 | Research store | Read and write topic folders, search past research | Markdown files plus a SQLite FTS5 full-text index, rebuildable from the files |
-| CLI | `ask`, `search`, `topics`, `show`, `models`, `leaderboard` | Typer |
-| MCP server | Expose the store and the council to Claude and Cursor | The official MCP Python SDK over stdio |
+| CLI | `ask`, `search`, `topics`, `show`, `models`, `leaderboard`, `app`, `mcp` | Typer |
+| App | Setup wizard, asking with live progress, topics, runs, search, spending, settings | Starlette and Uvicorn on 127.0.0.1, one HTML page with plain JavaScript and no build step; installed with uv by `install.ps1` or `install.sh` |
+| MCP server | Expose the store and the council to Claude and Cursor | The official MCP Python SDK (version 2) over stdio, as the optional extra `.[mcp]`, started with `conclave mcp` |
 
-The MCP server needs four tools: `search_research`, `get_topic`, `ask_council` and `add_note`.
+The MCP server has six tools: `list_topics`, `search_research`, `get_topic` and `get_run` read the store; `ask_council` runs a question, quick unless the assistant asks for a full run; `add_note` adds a note marked as the assistant's. The command line and the server plan and run questions through one shared module, so both make the same checks ([0012](decisions/0012-mcp-server.md)).
 
 ## Research store layout
 

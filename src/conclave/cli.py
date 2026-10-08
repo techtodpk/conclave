@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
-from conclave import __version__, library
+from conclave import __version__, library, service
 from conclave.catalog import CatalogError, ModelInfo, fetch_models, search
 from conclave.config import (
     MIN_MEMBERS,
@@ -18,15 +17,10 @@ from conclave.config import (
     ConfigError,
     Member,
     default_config_path,
-    default_config_text,
     load_config,
-    parse_member,
 )
-from conclave.council import Seat
-from conclave.gitstore import commit
 from conclave.http import new_client
-from conclave.keys import MissingKeyError, load_api_key
-from conclave.memory import Changes, MemoryFileError, add_note, load_memory, read_notes
+from conclave.memory import Changes, MemoryFileError
 from conclave.runner import (
     Outcome,
     Refused,
@@ -34,9 +28,10 @@ from conclave.runner import (
     check_ids,
     dollars,
     evidence_of,
-    run_question,
 )
-from conclave.store import DEFAULT_TOPIC, init_store, month_spend, slugify
+from conclave.service import Stop, split_ids
+from conclave.settings_file import PROFILE_NAME, create_config, profile_block
+from conclave.store import DEFAULT_TOPIC, init_store, slugify
 
 app = typer.Typer(
     help="Conclave: an LLM council that remembers.",
@@ -50,13 +45,6 @@ ConfigOption = Annotated[
     Path | None,
     typer.Option("--config", help="Config file to use. Default: ~/.conclave/config.toml"),
 ]
-
-DEFAULT_STORE_LINE = 'path = "~/conclave-research"'
-PROFILE_NAME = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
-
-
-class Stop(Exception):
-    """A problem to report to the user in plain words, ending the command."""
 
 
 def _fail(message: str) -> typer.Exit:
@@ -93,14 +81,6 @@ def _config_path(config: Path | None) -> Path:
     return (config or default_config_path()).expanduser()
 
 
-def _split_ids(text: str, what: str) -> list[Member]:
-    ids = [part.strip() for part in text.split(",") if part.strip()]
-    try:
-        return [parse_member(model_id, what) for model_id in ids]
-    except ConfigError as error:
-        raise Stop(str(error)) from None
-
-
 # --- init and config ----------------------------------------------------------
 
 
@@ -115,16 +95,10 @@ def init(
     """Create the config file and the research store. Safe to run again."""
     config_path = _config_path(config)
 
-    if config_path.exists():
-        typer.echo(f"Config already exists, left unchanged: {config_path}")
-    else:
-        text = default_config_text()
-        if store is not None:
-            # as_posix keeps Windows paths valid inside a TOML string.
-            text = text.replace(DEFAULT_STORE_LINE, f'path = "{store.expanduser().as_posix()}"')
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text(text, encoding="utf-8")
+    if create_config(config_path, store):
         typer.echo(f"Created config: {config_path}")
+    else:
+        typer.echo(f"Config already exists, left unchanged: {config_path}")
 
     settings = _load(config_path)
     created = init_store(settings.store_path)
@@ -236,16 +210,6 @@ def models(
 # --- profile add ----------------------------------------------------------------
 
 
-def _profile_block(name: str, members: list[Member], chairman: Member, checker: Member) -> str:
-    def table(member: Member) -> str:
-        return f'{{ model = "{member.model}", route = "{member.route}" }}'
-
-    lines = [f"[profiles.{name}]", "members = ["]
-    lines += [f"    {table(member)}," for member in members]
-    lines += ["]", f"chairman = {table(chairman)}", f"checker = {table(checker)}"]
-    return "\n".join(lines) + "\n"
-
-
 @profile_app.command("add")
 def profile_add(
     name: Annotated[str, typer.Argument(help="A short name for the profile, e.g. mine.")],
@@ -281,13 +245,13 @@ def profile_add(
                 f"Pick another name, or edit it in {config_path}."
             )
 
-        seats = _split_ids(members, "--members")
+        seats = split_ids(members, "--members")
         if len(seats) < MIN_MEMBERS:
             raise Stop(f"A profile needs at least {MIN_MEMBERS} members.")
-        chair = _split_ids(chairman, "--chairman")
+        chair = split_ids(chairman, "--chairman")
         if len(chair) != 1:
             raise Stop("--chairman takes exactly one model id.")
-        check = _split_ids(checker, "--checker") if checker else chair
+        check = split_ids(checker, "--checker") if checker else chair
         if len(check) != 1:
             raise Stop("--checker takes exactly one model id.")
 
@@ -306,7 +270,7 @@ def profile_add(
         raise _fail(str(stop)) from None
 
     original = config_path.read_text(encoding="utf-8")
-    block = _profile_block(name, seats, chair[0], check[0])
+    block = profile_block(name, seats, chair[0], check[0])
     config_path.write_text(original.rstrip("\n") + "\n\n" + block, encoding="utf-8")
     try:
         profile = load_config(config_path).profile(name)
@@ -377,87 +341,33 @@ def ask(
     started = datetime.now().astimezone()
 
     try:
-        if not question.strip():
-            raise Stop("The question is empty.")
-        if full and quick:
-            raise Stop("Choose one of --full and --quick, not both.")
-        if members and quick:
-            raise Stop("--members asks several models, so it cannot be combined with --quick.")
-        if fresh and review:
-            raise Stop("--fresh leaves the memory unchanged, so there is nothing to --review.")
-        mode = "full" if full or members else "quick" if quick else settings.default_mode
-
-        try:
-            chosen = settings.profile(profile)
-        except ConfigError as error:
-            raise Stop(str(error)) from None
-
-        chair_member = chosen.chairman
-        if chairman:
-            picked = _split_ids(chairman, "--chairman")
-            if len(picked) != 1:
-                raise Stop("--chairman takes exactly one model id.")
-            chair_member = picked[0]
-        chair = Seat(chair_member, "chairman")
-
-        if members:
-            override = _split_ids(members, "--members")
-            if len(override) < MIN_MEMBERS:
-                raise Stop(f"--members needs at least {MIN_MEMBERS} model ids.")
-            seats = [Seat(member, "member") for member in override]
-        elif mode == "full":
-            seats = [Seat(member, "member") for member in chosen.members]
-        else:
-            seats = [chair]
-
-        for seat in [*seats, chair]:
-            if seat.member.route != "api":
-                raise Stop(
-                    f"{seat.member.model} is set to route '{seat.member.route}'. Only route 'api' "
-                    "works so far; command-line routes arrive in milestone 7."
-                )
-
-        init_store(settings.store_path)
-        spent = month_spend(settings.store_path, started)
-        monthly = settings.budget.monthly_usd
-        if mode == "full" and spent >= monthly:
-            raise Stop(
-                f"This month's spending is {dollars(spent)}, at or above the {cap_text(monthly)} "
-                "monthly cap, so full runs are paused. Quick runs still work. "
-                "Raise budget.monthly_usd in the config file to continue."
-            )
-
-        try:
-            api_key = load_api_key(config_path)
-        except MissingKeyError as error:
-            raise Stop(str(error)) from None
-
-        try:
-            outcome = asyncio.run(
-                run_question(
-                    question,
-                    seats,
-                    chair if mode == "full" else None,
-                    settings,
-                    api_key,
-                    topic,
-                    mode,
-                    chosen.name,
-                    started,
-                    fresh=fresh,
-                    approve=_confirm_changes if review else None,
-                    checker=Seat(chosen.checker, "checker"),
-                    web=settings.web_search and not no_search,
-                )
-            )
-        except Refused as refused:
-            raise Stop(str(refused)) from None
-        except MemoryFileError as error:
-            raise Stop(str(error)) from None
+        plan = service.plan_ask(
+            settings,
+            question,
+            started,
+            profile=profile,
+            members=members,
+            chairman=chairman,
+            full=full,
+            quick=quick,
+            fresh=fresh,
+            review=review,
+        )
+        outcome = service.run_plan(
+            plan,
+            settings,
+            config_path,
+            question,
+            topic,
+            started,
+            fresh=fresh,
+            search=not no_search,
+            approve=_confirm_changes if review else None,
+        )
     except Stop as stop:
         raise _fail(str(stop)) from None
 
-    _report(outcome, settings, chosen.name, outcome.topic, spent)
+    _report(outcome, settings, plan.profile.name, outcome.topic, plan.spent)
     if outcome.run is None:
         raise typer.Exit(code=1)
 
@@ -624,16 +534,13 @@ def show(
 ) -> None:
     """Show what the council has concluded on a topic, its open disputes and recent runs."""
     settings = _load(_config_path(config))
-    slug = slugify(topic, fallback=DEFAULT_TOPIC)
-    folder = settings.store_path / "topics" / slug
-    if not folder.is_dir():
-        raise _fail(f"No topic named '{slug}'. Run `conclave topics` to see them.")
     try:
-        memory = load_memory(folder, slug)
-    except MemoryFileError as error:
-        raise _fail(str(error)) from None
+        view = service.topic_view(settings, topic)
+    except Stop as stop:
+        raise _fail(str(stop)) from None
+    memory = view.memory
 
-    typer.echo(f"Topic: {slug}  ({folder})")
+    typer.echo(f"Topic: {view.slug}  ({view.folder})")
     typer.echo("")
     typer.echo("Claims")
     if not memory.active_claims:
@@ -646,21 +553,16 @@ def show(
         typer.echo("  None.")
     for dispute in memory.open_disputes:
         typer.echo(f"  {dispute.id}  {dispute.text}")
-    notes = read_notes(folder)
     typer.echo("")
-    typer.echo("Your notes" if notes else "Your notes: none. Add one with `conclave note`.")
-    if notes:
-        for line in notes.splitlines():
-            if line.startswith("- "):
-                typer.echo(f"  {line[2:]}")
-    runs = sorted((folder / "runs").glob("*")) if (folder / "runs").is_dir() else []
+    typer.echo("Your notes" if view.notes else "Your notes: none. Add one with `conclave note`.")
+    for line in view.notes.splitlines():
+        if line.startswith("- "):
+            typer.echo(f"  {line[2:]}")
+    total = len(list((view.folder / "runs").glob("*"))) if (view.folder / "runs").is_dir() else 0
     typer.echo("")
-    typer.echo(f"Runs: {len(runs)}" + (", most recent:" if runs else ""))
-    for run in runs[-5:][::-1]:
-        kind = library.run_mode(run)
-        if kind == "full" and not (run / "final.md").exists():
-            kind = "full, stopped before the one-page answer"
-        typer.echo(f"  {run.name}  ({kind})")
+    typer.echo(f"Runs: {total}" + (", most recent:" if view.runs else ""))
+    for name, kind in view.runs:
+        typer.echo(f"  {name}  ({kind})")
 
 
 @app.command()
@@ -670,13 +572,11 @@ def note(
     config: ConfigOption = None,
 ) -> None:
     """Add your own note to a topic. The council reads it first, before its own conclusions."""
-    if not text.strip():
-        raise _fail("The note is empty.")
     settings = _load(_config_path(config))
-    slug = slugify(topic, fallback=DEFAULT_TOPIC)
-    folder = settings.store_path / "topics" / slug
-    path = add_note(folder, slug, text, datetime.now().astimezone().date())
-    problem = commit(settings.store_path, [path], f"conclave: note on {slug}")
+    try:
+        path, problem = service.note(settings, topic, text)
+    except Stop as stop:
+        raise _fail(str(stop)) from None
     typer.echo(f"Added to {path}")
     if problem:
         typer.echo(problem)
@@ -727,6 +627,62 @@ def leaderboard(
         )
     typer.echo("")
     typer.echo("Few runs make for a noisy ranking. Treat this as a hint, not a verdict.")
+
+
+@app.command("app")
+def run_app(
+    config: ConfigOption = None,
+    port: Annotated[int | None, typer.Option("--port", help="Port to use. Default: 8765.")] = None,
+    no_browser: Annotated[
+        bool, typer.Option("--no-browser", help="Do not open the browser.")
+    ] = False,
+) -> None:
+    """Open the Conclave app in your browser. Your research stays on this computer."""
+    try:
+        from conclave.web.launch import launch
+    except ImportError:
+        raise _fail(
+            "The app needs its optional packages. Install them with:\n"
+            '  python -m pip install -e ".[app]"\n'
+            "or use the installer described in the setup guide."
+        ) from None
+    try:
+        message = launch(config, port, browser=not no_browser)
+    except OSError as error:
+        raise _fail(f"Could not start the app: {error}") from None
+    typer.echo(message)
+
+
+@app.command("shortcut")
+def make_shortcut() -> None:
+    """Put a Conclave shortcut on your desktop that opens the app."""
+    from conclave.web.shortcut import create
+
+    try:
+        made = create()
+    except Exception as error:  # noqa: BLE001 - e.g. PowerShell refused; explain, do not crash
+        raise _fail(f"Could not create the shortcut: {error}") from None
+    for path in made:
+        typer.echo(f"Created {path}")
+
+
+@app.command("mcp")
+def mcp_server(config: ConfigOption = None) -> None:
+    """Run Conclave as an MCP server over stdio, for Claude Desktop, Cursor and others.
+
+    Started by the MCP client, not by hand. Needs the optional extra:
+    python -m pip install -e ".[mcp]"
+    """
+    try:
+        from conclave.mcp_server import serve
+    except ImportError:
+        raise _fail(
+            "The MCP server needs the optional MCP package. Install it with:\n"
+            '  python -m pip install -e ".[mcp]"\n'
+            "from the Conclave folder, then restart your MCP client."
+        ) from None
+    _load(_config_path(config))  # report a config problem now, not on the first tool call
+    serve(config)
 
 
 if __name__ == "__main__":

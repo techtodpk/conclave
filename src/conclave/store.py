@@ -64,11 +64,21 @@ def init_store(path: Path) -> list[Path]:
     return created
 
 
+# Names Windows reserves for devices; no file or folder may be called this.
+WINDOWS_RESERVED = frozenset(
+    ["con", "prn", "aux", "nul"]
+    + [f"com{n}" for n in range(1, 10)]
+    + [f"lpt{n}" for n in range(1, 10)]
+)
+
+
 def slugify(text: str, max_words: int = 8, max_length: int = 60, fallback: str = "untitled") -> str:
     """Turn any text into a short lowercase name that is safe as a folder name everywhere."""
     plain = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
     words = re.findall(r"[a-z0-9]+", plain.lower())[:max_words]
     slug = "-".join(words)[:max_length].strip("-")
+    if slug in WINDOWS_RESERVED:
+        slug += "-topic"  # Windows cannot create a folder with this name
     return slug or fallback
 
 

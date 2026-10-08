@@ -2,13 +2,13 @@
 
 **The single source of truth for what Conclave does today, what is being built now, and what is still to come.** Every change that adds, removes or changes a capability updates this file in the same commit.
 
-Last updated: 8 October 2026 · Version 0.5.0 · Latest tag: `milestone-5`
+Last updated: 9 October 2026 · Version 0.7.0 · Latest tag: `milestone-5`
 
 | | |
 | --- | --- |
 | **Done** | Milestones 1 to 5: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer; a memory per topic that each new question starts from; web search, with key claims checked against the cited pages |
-| **In progress** | Nothing; milestone 6 starts next |
-| **Next** | Milestone 6: an MCP server, so Claude Desktop and Cursor can use the research store |
+| **In progress** | Milestone 7: the app and a one-command install, built and tested, awaiting its first run on Windows. Milestone 6, the MCP server, is built and awaits its live run in Claude Desktop |
+| **Next** | Milestone 8: running members on your own Claude, Gemini or ChatGPT plan, and a sample topic |
 
 ## Scope
 
@@ -16,7 +16,8 @@ Conclave sends one question to several LLMs, has them critique each other, check
 
 | In scope for v1 | Out of scope for v1 |
 | --- | --- |
-| Command-line tool, on Windows, macOS and Linux | Web interface |
+| A local app in the browser, with a guided setup, on Windows, macOS and Linux (decision 0013) | A hosted web service |
+| Command-line tool | Mobile apps |
 | Council members, chairman and checker chosen by the user | Logging in to chat web apps with stored passwords |
 | Cross-critique, claim checking and web search on full runs | Vector database or embeddings |
 | A local research store in plain files, with full-text search | Reading the store from the ChatGPT app |
@@ -34,9 +35,10 @@ A change of scope is recorded as a decision record before it is built.
 | 3 | Critique and chairman | Done, 8 Oct 2026 | `milestone-3` |
 | 4 | Store and recall | Done, 8 Oct 2026 | `milestone-4` |
 | 5 | Web search and claim check | Done, 8 Oct 2026 | `milestone-5` |
-| 6 | MCP server | Pending | |
-| 7 | CLI adapters and showcase | Pending | |
-| 8 | Public ranking chart | Pending | |
+| 6 | MCP server | Built, awaiting live run | |
+| 7 | App and guided install | Built, awaiting live run | |
+| 8 | CLI adapters and showcase | Pending | |
+| 9 | Public ranking chart | Pending | |
 
 A milestone is done when every task below is ticked, the tests and CI pass, it has been run against the live API, and the README, setup guide, changelog and this file describe it.
 
@@ -121,15 +123,40 @@ Done when members cite live sources and the key claims on the final page are che
 - [x] Budget caps reviewed against measured costs: full runs with search cost $0.17 and $0.28 against a $0.59 ceiling, so the $1.00 default cap stands
 - [ ] `--deep`: moved to follow-ups (decision 0011)
 
-### 6. MCP server: pending
+### 6. MCP server: built, awaiting live run
 
 Done when Claude Desktop and Cursor can both search the store and start a run.
 
-- [ ] Tools: `search_research`, `get_topic`, `ask_council` and `add_note`
-- [ ] Runs over stdio with the official MCP Python SDK
-- [ ] Setup steps for Claude Desktop and Cursor in the setup guide
+- [x] Tools: `search_research`, `get_topic`, `ask_council` and `add_note`, plus `list_topics` and `get_run` (decision 0012)
+- [x] Runs over stdio with the official MCP Python SDK (version 2), installed as the optional extra `.[mcp]`; started with `conclave mcp`
+- [x] `ask_council` is quick by default and full only when asked; every check the command line makes applies, from one shared module
+- [x] Notes added through MCP are marked with the client's name
+- [x] Tests: every tool in process, and a real stdio session started as a client would
+- [x] Setup steps for Claude Desktop and Cursor in the setup guide
+- [ ] Live run: Claude Desktop reads the `os` topic and starts a quick run
+- [ ] Live run: Cursor connects and lists the tools
 
-### 7. CLI adapters and showcase: pending
+### 7. App and guided install: built, awaiting live run
+
+Done when someone who has never used a terminal can install Conclave from one copied command, finish setup in the browser, and get a full council answer. Decision 0013.
+
+- [x] `conclave app`: a local web app on `127.0.0.1`, opened in the browser; a second launch reuses the running app
+- [x] Setup wizard on first launch: research folder, key checked with OpenRouter, council, spending limits, a first question
+- [x] Ask, quick or full, with every stage, call, cost and source shown live
+- [x] Topics with claims, labels, history and disputes; notes added and removed; every run in full, including claim checks and sources
+- [x] Search, spending by month and run, and the model leaderboard
+- [x] Settings: key, defaults, spending limits, web search, advanced options, and councils built from OpenRouter's live model list with prices
+- [x] Protection: local host names only, a required request header, other sites' origins refused, model output rendered without raw HTML
+- [x] Config edits keep the user's comments and never write an invalid file
+- [x] `install.ps1` and `install.sh`: uv, Conclave with its private Python, a desktop shortcut, then the app; no Git, Python or administrator rights needed
+- [x] Tests: the API end to end against the simulated OpenRouter, config editing, shortcuts and installers; the installer run in a clean home folder on Linux; every page checked in a browser in light, dark and phone widths
+- [x] Project website on GitHub Pages, from `docs/index.html`: what Conclave does, how far to trust each claim, screenshots, install commands and measured costs
+- [x] "Try it in your browser" through GitHub Codespaces (`.devcontainer`): the app starts by itself and trusts only that Codespace's own forwarded address
+- [ ] Turn on GitHub Pages (Settings, Pages, branch `main`, folder `/docs`) and check the site
+- [ ] Live run on Windows: install from the one-line command, finish the wizard, ask a full question
+- [ ] Live run on macOS
+
+### 8. CLI adapters and showcase: pending
 
 Done when a full run works with Claude on the user's own plan, and the README shows a real sample topic with its numbers.
 
@@ -139,7 +166,7 @@ Done when a full run works with Claude on the user's own plan, and the README sh
 - [ ] A sample topic folder in the repository
 - [ ] Measured cost and time per run published in the README
 
-### 8. Public ranking chart: pending
+### 9. Public ranking chart: pending
 
 Done when the chart shows at least one public source beside the personal leaderboard, each with its date, link and attribution.
 
@@ -159,6 +186,8 @@ Done when the chart shows at least one public source beside the personal leaderb
 | CI results for milestone 2 unconfirmed | The milestone 2 run took 10.5 minutes and its secret scan passed, but the test job results have not been checked | Check on the Actions page |
 | Cost estimate is a ceiling | The pre-run check assumes every model writes the longest answer allowed and uses every search, so it can refuse runs that would have cost less. A `balanced` full run's ceiling is about $0.59; measured runs with search cost $0.17 and $0.28 | Keep; revisit if it refuses runs that would have fitted |
 | Search limit not always kept | With a limit of 3 searches per answer, GPT-6.1 Sol ran 5 in the second live run. OpenRouter billed it $0.014 in search fees, so the cost was small, and the pre-run ceiling has room for it | Check whether the limit belongs elsewhere in the request; until then the ceiling is an estimate |
+| Full runs inside one tool call | A full `ask_council` call takes one to two minutes. A client that times out tool calls sooner shows an error, though the run still finishes and is saved | Check in the milestone 6 live run; if needed, report progress or return early and let the assistant fetch the result with `get_run` |
+| Installer is unsigned | The one-line installer is a script the user runs on trust, like uv's own installer | A signed `.exe` and `.dmg` later, on top of the same steps |
 | `--deep` devil's advocate | One low-cost model argues against the consensus and the chairman answers its strongest point (decision 0005) | Moved from milestone 5; not scheduled |
 | `conclave rebuild <topic>` | Regenerate a topic's summary from all its runs and show how it differs from the current one, as a drift check. Deferred until topics have enough runs to drift | After milestone 5 |
 | No interactive model picker | Profiles are built with `conclave profile add`; an interactive picker may come later | Not scheduled |

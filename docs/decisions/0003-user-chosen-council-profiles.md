@@ -15,7 +15,7 @@ A **profile** names the members, the chairman and the checker, and each model's 
 Two aids guide the choice:
 
 - **A personal leaderboard**, in v1. In the Critique stage every member ranks the others' answers. Those rankings are saved with each run, so the tool can show which model wins on the user's own questions and topics.
-- **A public ranking chart**, in milestone 8. One row per model, one column per published benchmark, with price beside it.
+- **A public ranking chart**, in milestone 9 (numbered 8 when this was written). One row per model, one column per published benchmark, with price beside it.
 
 ## Consequences
 

@@ -15,3 +15,5 @@ One short page per design choice: the context, what was decided, and what follow
 | [0009](0009-critique-and-synthesis.md) | How members review each other and how the chairman sums up | 2026-10-08 |
 | [0010](0010-topic-memory.md) | How a topic's memory is stored, recalled and updated | 2026-10-08 |
 | [0011](0011-web-search-and-claim-checking.md) | Web search through one engine, and claim checks decided in code | 2026-10-08 |
+| [0012](0012-mcp-server.md) | The MCP server: quick runs by default, the command line's checks, assistants' notes marked | 2026-10-08 |
+| [0013](0013-local-app-and-guided-install.md) | A local web app and a one-command install; a web interface moves into v1 | 2026-10-09 |

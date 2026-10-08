@@ -432,7 +432,7 @@ def test_command_line_route_is_refused_for_now(workspace, openrouter):
     result = _ask(workspace, "A question")
 
     assert result.exit_code == 1
-    assert "milestone 7" in result.output
+    assert "milestone 8" in result.output
     assert openrouter.chat_requests == []
 
 

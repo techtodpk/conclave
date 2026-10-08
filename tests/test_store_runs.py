@@ -89,3 +89,11 @@ def test_meta_is_readable_json(tmp_path):
     target = write_meta(run, {"totals": {"cost_usd": 0.1}})
 
     assert json.loads(target.read_text(encoding="utf-8")) == {"totals": {"cost_usd": 0.1}}
+
+
+def test_windows_reserved_names_are_never_used_for_folders():
+    from conclave.store import slugify
+
+    assert slugify("CON") == "con-topic"
+    assert slugify("com1") == "com1-topic"
+    assert slugify("console") == "console"

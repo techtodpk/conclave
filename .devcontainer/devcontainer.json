@@ -1,0 +1,16 @@
+{
+  // Opens Conclave in a GitHub Codespace: a cloud computer GitHub runs for the visitor,
+  // billed to their own free allowance. Conclave starts by itself and opens in the browser.
+  "name": "Conclave",
+  "image": "mcr.microsoft.com/devcontainers/python:3.13",
+  "hostRequirements": { "cpus": 2 },
+  "postCreateCommand": "pip install -e '.[app]'",
+  "postAttachCommand": "conclave app --no-browser",
+  "forwardPorts": [8765],
+  "portsAttributes": {
+    "8765": { "label": "Conclave", "onAutoForward": "openBrowser" }
+  },
+  "customizations": {
+    "codespaces": { "openFiles": ["README.md"] }
+  }
+}

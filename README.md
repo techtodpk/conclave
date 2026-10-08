@@ -1,13 +1,17 @@
 # Conclave
 
+**Website: [techtodpk.github.io/conclave](https://techtodpk.github.io/conclave/)** · [Try it in your browser](https://codespaces.new/techtodpk/conclave?quickstart=1)
+
 **An LLM council that remembers.** Several models research the same question, critique each other, and save what they conclude to a research store on your own machine. Every later question on that topic starts from what the council already worked out.
 
-> **Status: milestone 5 of 8, version 0.5.0.** Conclave asks a council of models the same question. In a full run each member searches the web and cites its sources, the members review each other's answers with the authors hidden, a checker tests the key claims against the cited pages, and a chairman writes a one-page answer. It keeps a memory per topic: what the council concluded, open disputes and your own notes are read before every new question on that topic, and full runs update it. See [what works today](#what-works-today), and [project status](docs/STATUS.md) for what is being built now and what is still to come.
+> **Status: milestone 7 of 9, version 0.7.0.** Conclave asks a council of AI models the same question. In a full run each member searches the web and cites its sources, the members review each other's answers with the authors hidden, a checker tests the key claims against the cited pages, and a chairman writes a one-page answer. It keeps a memory per topic, and every new question on a topic starts from what the council already concluded. It runs as an app in your browser, installed with one command, or from the command line; Claude Desktop and Cursor can use it too. See [what works today](#what-works-today), and [project status](docs/STATUS.md) for what is being built now.
 
 ## What works today
 
 | Capability | Status | Arrives in |
 | --- | --- | --- |
+| An app in your browser: guided setup, live progress, topics, runs, search, spending and settings | Built; first Windows run pending | Milestone 7 |
+| Install with one command, no Python or terminal skills needed | Built; first Windows run pending | Milestone 7 |
 | Ask the chairman a question (quick mode) | Works | Milestone 2 |
 | Ask every council member at the same time (`--full`) | Works | Milestone 2 |
 | Save each run as plain files: question, one answer per model, tokens, cost and timings | Works | Milestone 2 |
@@ -19,9 +23,9 @@
 | Memory updated after each full run under fixed rules, with every change shown; `--review` to approve first | Works | Milestone 4 |
 | Search across your past research; list topics; personal model leaderboard | Works | Milestone 4 |
 | Members search the web and cite sources; key claims checked against the cited pages | Works | Milestone 5 |
-| Use from Claude Desktop and Cursor (MCP server) | Not yet | Milestone 6 |
-| Run members on your own Claude, Gemini or ChatGPT plan instead of the API | Not yet | Milestone 7 |
-| Public benchmark ranking chart | Not yet | Milestone 8 |
+| Use from Claude Desktop and Cursor (MCP server) | Built; first live run pending | Milestone 6 |
+| Run members on your own Claude, Gemini or ChatGPT plan instead of the API | Not yet | Milestone 8 |
+| Public benchmark ranking chart | Not yet | Milestone 9 |
 
 **"Verified" means a cited page states the claim, not that the claim is true.** Every key claim on the one-page answer carries a label, worked out in code from the evidence: verified, agreed but unchecked, single source, single model or disputed. `verification.md` shows the quote behind every verdict, so you can judge the page for yourself. Quick runs and `--no-search` runs answer from the models' training data and say so.
 
@@ -75,17 +79,38 @@ More detail is in [docs/design.md](docs/design.md), and the reasoning behind eac
 
 ## Install
 
-Conclave needs Python 3.11 or newer.
+**For everyone.** Copy one line into a terminal window, press Enter, and Conclave installs itself, puts a shortcut on your desktop and opens in your browser, where a short setup guides you through the rest. You need no Python, no Git and no administrator rights.
+
+On **Windows**, open PowerShell (press the Windows key, type `powershell`, press Enter) and paste:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/techtodpk/conclave/main/install.ps1 | iex"
+```
+
+On **macOS**, open Terminal (press Cmd+Space, type `terminal`, press Enter); on **Linux**, open a terminal. Then paste:
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/techtodpk/conclave/main/install.sh | sh
+```
+
+**Just want a look?** [Open Conclave in a GitHub Codespace](https://codespaces.new/techtodpk/conclave?quickstart=1): GitHub runs it on a cloud computer and it opens in your browser, using your own GitHub account's free monthly allowance. You still need an OpenRouter key to ask questions.
+
+The setup in your browser asks where to keep your research, for your [OpenRouter](https://openrouter.ai/keys) key, which council to use and how much you are willing to spend, then lets you ask a first question. After that, open Conclave from its desktop shortcut. The [setup guide](docs/SETUP.md) shows each step, and how to update or remove Conclave.
+
+**For developers.** Conclave needs Python 3.11 or newer.
 
 ```bash
 git clone https://github.com/techtodpk/conclave.git
 cd conclave
-python -m pip install -e .
+python -m pip install -e ".[app]"
+conclave app
 ```
 
-The [setup guide](docs/SETUP.md) has full steps for Windows, macOS and Linux, including a virtual environment, where files are kept, and troubleshooting.
+The [setup guide](docs/SETUP.md) also covers a virtual environment, the command line, and troubleshooting.
 
-## Quick start
+## Command line
+
+Everything the app does can also be done from the command line.
 
 ```bash
 conclave init      # creates ~/.conclave/config.toml and ~/conclave-research
@@ -137,6 +162,8 @@ A full run prints the one-page answer, then what each stage cost, how many searc
 
 `conclave init --store /path/to/folder` puts the research store somewhere else. Running `init` again never overwrites anything.
 
+To use the research store from Claude Desktop or Cursor, install the MCP extra and add Conclave to the client's config; [step 10 of the setup guide](docs/SETUP.md#10-use-conclave-from-claude-desktop-and-cursor) has the exact entry. The assistant can then list topics, search, read the council's conclusions, add a marked note, and ask the council a question: quick by default, full only when it asks, always within your caps.
+
 If your terminal says `conclave` is not recognised, run it through Python instead: `python -m conclave ask "..."` works the same way.
 
 ## Choosing your council
@@ -173,7 +200,7 @@ Conclave calls models through pay-per-use APIs. Subscriptions to chat apps gener
 - **Budget caps.** The config sets a cap per full run, per quick run and per month. Before anything is sent, Conclave works out the most a run could cost and refuses it if that is above the cap.
 - **Quick mode by default.** One model plus your store answers most questions. The full council runs when you ask for it.
 - **Search within limits.** In a full run each member may search up to 3 times (about $0.007 per search), and `--no-search` turns it off.
-- **Your own subscriptions, optionally.** From milestone 7, a member can be routed through a vendor's official command-line tool running on your own plan instead of the API. This is for personal use only, and you are responsible for checking your plan's terms.
+- **Your own subscriptions, optionally.** From milestone 8, a member can be routed through a vendor's official command-line tool running on your own plan instead of the API. This is for personal use only, and you are responsible for checking your plan's terms.
 
 Every run records its real cost in `meta.json` and prints it. First measured runs, 8 October 2026, one short technical question:
 
@@ -190,10 +217,11 @@ The first full run cost $0.066, about 9% of its $0.75 cap. The chairman's page w
 
 ## Privacy
 
-- **Your research stays on your machine.** The store is a folder of plain files. Conclave has no server.
+- **Your research stays on your machine.** The store is a folder of plain files. Conclave has no server of its own: the app runs on your computer and answers only to pages from your computer.
 - **Models see what they are asked.** That is your question plus the topic's recalled memory: its claims, open disputes and your notes. `--fresh` sends the question alone.
 - **Searches go through OpenRouter.** In a full run, the search queries the members write go to OpenRouter and its search provider, Exa. Pages cited for claim checking are fetched directly from your machine. Neither sees your research store. `--no-search` turns both off.
 - **Backup is your choice.** The store reaches a Git remote only if you push it there.
+- **MCP clients see only your research store.** The MCP server offers tools that read the store, add a note marked as the assistant's, and run a question within your caps. It never returns your API key.
 - **Keys stay out of Git.** The key is read from the environment or a `.env` file outside the code, is never printed or saved in a run, and CI scans every push for secrets.
 
 Keep your research store out of this repository. The `.gitignore` ignores `research/` and `conclave-research/` as a safety net.
@@ -206,15 +234,16 @@ The task-level plan for each milestone, with what is done, in progress and pendi
 - [x] **2. Council core.** Model client, profiles, a model list with live prices, and the Research stage.
 - [x] **3. Critique and chairman.** Anonymised cross-review with saved rankings, then the one-page synthesis.
 - [x] **4. Store and recall.** Topic memory read before every question and updated after full runs, search, and a personal leaderboard.
-- [ ] **5. Web search and claim check.** Search-enabled members, claim extraction, source fetch, verdicts.
-- [ ] **6. MCP server.** Claude Desktop and Cursor read and write the same store.
-- [ ] **7. CLI adapters and showcase.** Optional subscription routes, a sample topic, measured costs.
-- [ ] **8. Public ranking chart.** Model rankings from published benchmarks beside your own leaderboard.
+- [x] **5. Web search and claim check.** Search-enabled members, claim extraction, source fetch, verdicts.
+- [ ] **6. MCP server.** Claude Desktop and Cursor read and write the same store. Built; live run pending.
+- [ ] **7. App and guided install.** A local app in the browser and a one-command install, for people who do not use a terminal. Built; live run pending.
+- [ ] **8. CLI adapters and showcase.** Optional subscription routes, a sample topic, measured costs.
+- [ ] **9. Public ranking chart.** Model rankings from published benchmarks beside your own leaderboard.
 
 ## Development
 
 ```bash
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev]"   # includes the app and MCP extras, so their tests run
 ruff check .
 ruff format --check .
 pytest

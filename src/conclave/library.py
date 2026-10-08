@@ -235,3 +235,44 @@ def leaderboard(store: Path, topic: str | None = None) -> list[Placing]:
         for model, values in scores.items()
     ]
     return sorted(table, key=lambda p: (p.score, -p.rankings, p.model))
+
+
+# --- spending -------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class RunRecord:
+    topic: str
+    name: str
+    question: str
+    mode: str
+    started: str  # ISO time
+    cost: float
+    verified: int | None  # key claims verified, for full runs that checked claims
+    checked: int | None
+
+
+def run_records(store: Path) -> list[RunRecord]:
+    """Every saved run, newest first, from its meta.json."""
+    records = []
+    for meta_file in store.glob("topics/*/runs/*/meta.json"):
+        try:
+            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+            cost = float(meta["totals"]["cost_usd"])
+            started = str(meta["started"])
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        evidence = meta.get("evidence") if isinstance(meta.get("evidence"), dict) else {}
+        records.append(
+            RunRecord(
+                topic=meta_file.parent.parent.parent.name,
+                name=meta_file.parent.name,
+                question=str(meta.get("question", "")),
+                mode=run_mode(meta_file.parent),
+                started=started,
+                cost=cost,
+                verified=evidence.get("verified"),
+                checked=evidence.get("claims_checked"),
+            )
+        )
+    return sorted(records, key=lambda r: r.started, reverse=True)

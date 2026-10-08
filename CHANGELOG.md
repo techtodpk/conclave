@@ -2,6 +2,35 @@
 
 Each milestone on the [roadmap](README.md#roadmap) is tagged in Git when it is complete. Work in progress and pending tasks are tracked in [project status](docs/STATUS.md).
 
+## Milestone 7: app and guided install (unreleased)
+
+Version 0.7.0. Tagged `milestone-7` after its first live run on Windows. Decision record [0013](docs/decisions/0013-local-app-and-guided-install.md) moves a web interface into the scope of v1; the later milestones are renumbered (CLI adapters and showcase are now 8, the public ranking chart 9).
+
+- `conclave app` opens Conclave in your browser. It runs on your own computer at `http://127.0.0.1:8765` and answers only to pages from it. Starting it again while it is running just opens the page.
+- A setup wizard on first launch: research folder, OpenRouter key (checked with OpenRouter before it is saved, and never shown again), council, spending limits, and a first question.
+- Ask a question, quick or full, and watch each stage, model call, cost and source as it happens. The one-page answer shows claim labels as coloured badges.
+- Topics: claims with their labels and earlier wording, open and resolved disputes, your notes (add and remove), and every run. A run shows the one-page answer, each member's answer and review, the claim checks, the sources and the cost of every call.
+- Search, spending by month and by run against your limits, and the model leaderboard.
+- Settings: the key, default council and thoroughness, spending limits, web search, advanced options, and councils built by picking models from OpenRouter's live list with their prices.
+- One-command installers, `install.ps1` for Windows and `install.sh` for macOS and Linux. They install uv, which keeps a private copy of Python, install Conclave with the app and MCP extras from GitHub's zip download, add a desktop shortcut (`conclave shortcut`), and open the app. No Python, Git or administrator rights are needed.
+- The app's packages are the optional extra `.[app]`. The command line still needs only two packages.
+- Config changes from the app are small edits that keep your comments; a change that would make the config invalid is refused before it is written. The key is saved in `.env` beside the config.
+- The runner reports progress as it goes, for the app: each stage, each model call as it starts and finishes, and the claim-checking steps.
+- The setup guide starts with a section for people who do not use a terminal, with screenshots.
+- A project website at techtodpk.github.io/conclave, served free by GitHub Pages from `docs/index.html`.
+- "Try it in your browser": a GitHub Codespaces configuration that installs Conclave and opens the app. It runs on the visitor's own free Codespaces allowance. Inside a Codespace, and only there, the app also trusts that Codespace's forwarded web address.
+
+## Milestone 6: MCP server (unreleased)
+
+Version 0.6.0. Tagged `milestone-6` after its first run in Claude Desktop.
+
+- `conclave mcp` runs Conclave as an MCP server over stdio, so Claude Desktop, Cursor and other MCP clients can use the research store. It needs the optional extra: `python -m pip install -e ".[mcp]"`.
+- Six tools: `list_topics`, `search_research`, `get_topic` and `get_run` read the store; `ask_council` runs a question; `add_note` adds a note.
+- `ask_council` runs a quick run unless the assistant asks for a full one. Every check the command line makes applies to it, including the per-run and monthly caps and the key's credit, because both now share one module for planning and running a question.
+- Notes added through MCP end with "(added by <client> via MCP)", so they can be told apart from your own.
+- The setup guide has a new step 10 with the config for Claude Desktop and Cursor on Windows and macOS. Later steps are renumbered.
+- Decision record [0012](docs/decisions/0012-mcp-server.md).
+
 ## Milestone 5: web search and claim check (2026-10-08)
 
 Tag: `milestone-5`. Version 0.5.0.

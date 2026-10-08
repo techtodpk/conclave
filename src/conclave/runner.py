@@ -86,6 +86,69 @@ from conclave.verify import (
 # Asked before memory changes are saved, when the user wants to approve them.
 Approve = Callable[[Changes], bool]
 
+# Told what the run is doing, as it happens: {"type": "stage" | "call" | "step", ...}.
+Progress = Callable[[dict[str, Any]], None]
+
+
+class _Reporting:
+    """Wraps the model client to report each call as it starts and finishes."""
+
+    def __init__(self, client: OpenRouterClient, progress: Progress) -> None:
+        self._client = client
+        self._progress = progress
+        self.stage = "research"
+
+    def stage_started(self, stage: str, detail: str = "") -> None:
+        self.stage = stage
+        self._progress({"type": "stage", "stage": stage, "detail": detail})
+
+    def step(self, text: str) -> None:
+        self._progress({"type": "step", "stage": self.stage, "detail": text})
+
+    async def complete(self, member: Member, messages, max_tokens: int, searches: int = 0):
+        stage = self.stage
+        self._progress({"type": "call", "stage": stage, "model": member.model, "state": "started"})
+        try:
+            if searches:
+                done = await self._client.complete(member, messages, max_tokens, searches)
+            else:
+                done = await self._client.complete(member, messages, max_tokens)
+        except Exception as error:
+            self._progress(
+                {
+                    "type": "call",
+                    "stage": stage,
+                    "model": member.model,
+                    "state": "failed",
+                    "error": str(error),
+                }
+            )
+            raise
+        self._progress(
+            {
+                "type": "call",
+                "stage": stage,
+                "model": member.model,
+                "state": "done",
+                "cost": done.cost_usd,
+                "seconds": round(done.seconds, 1),
+                "cut_off": done.cut_off,
+                "sources": len(done.sources),
+                "search_failed": bool(done.search_failed),
+            }
+        )
+        return done
+
+
+class _Silent:
+    """Stands in for _Reporting when nobody is listening."""
+
+    def stage_started(self, stage: str, detail: str = "") -> None:
+        pass
+
+    def step(self, text: str) -> None:
+        pass
+
 
 class Refused(Exception):
     """The run was stopped before anything was sent. The message says why."""
@@ -165,6 +228,7 @@ class _Context:
     recall_text: str
     checker: Seat | None = None
     searches: int = 0
+    report: Any = None  # _Reporting or _Silent
 
 
 async def run_question(
@@ -181,6 +245,7 @@ async def run_question(
     approve: Approve | None = None,
     checker: Seat | None = None,
     web: bool = True,
+    progress: Progress | None = None,
 ) -> Outcome:
     """Run the stages for one question. `chairman` is set for full runs only.
 
@@ -257,7 +322,10 @@ async def run_question(
                 "run or cheaper models."
             )
 
-        client = OpenRouterClient(http, api_key, reasoning=settings.reasoning)
+        client: Any = OpenRouterClient(http, api_key, reasoning=settings.reasoning)
+        report: Any = _Silent()
+        if progress is not None:
+            client = report = _Reporting(client, progress)
         context = _Context(
             question,
             settings,
@@ -270,9 +338,13 @@ async def run_question(
             recall_text,
             checker,
             searches,
+            report,
         )
 
         # Research
+        report.stage_started(
+            "research", "searching the web and answering" if searches else "answering"
+        )
         results = await research(
             client, seats, question, answer_tokens, today, recall_text, searches
         )
@@ -373,6 +445,7 @@ async def _council(
         _stop(outcome, "critique", catalog, reviewers, longest, review_tokens, cap)
         return None
 
+    context.report.stage_started("critique", "reviewing each other's answers")
     reviews = await critique(client, answers, critics, question, review_tokens, today)
     for review in reviews:
         call = _record(Call("critique", review.result, letter=review.letter), catalog)
@@ -418,6 +491,7 @@ async def _council(
         _stop(outcome, "synthesis", catalog, [chairman.member], prompt_tokens, page_tokens, cap)
         return None
 
+    context.report.stage_started("synthesis", "writing the one-page answer")
     result = await ask_one(client, chairman, messages, page_tokens)
     outcome.calls.append(_record(Call("synthesis", result), catalog))
     if result.completion is None:
@@ -474,6 +548,7 @@ async def _verify(
         )
         return
 
+    context.report.stage_started("verify", "picking the key claims")
     result = await ask_one(client, checker, messages, EXTRACT_MAX_TOKENS)
     outcome.calls.append(_record(Call("verify", result), context.catalog))
     if result.completion is None:
@@ -489,6 +564,7 @@ async def _verify(
         return
 
     wanted = {sid for claim in claims for sid in claim.sources[:SOURCES_PER_CLAIM]}
+    context.report.step(f"reading {len(wanted)} cited pages")
     async with new_page_client() as pages:
         await fetch_all(pages, [ids[sid] for sid in sorted(wanted, key=lambda s: int(s[1:]))])
     attach_passages(claims, ids, SOURCES_PER_CLAIM)
@@ -506,6 +582,7 @@ async def _verify(
             )
             readable = []
         else:
+            context.report.step(f"checking {len(readable)} claims against the pages")
             verdict = await ask_one(client, checker, check, tokens)
             outcome.calls.append(_record(Call("verify", verdict), context.catalog))
             ok = (
@@ -683,6 +760,7 @@ async def _update_memory(
         _append_memory_section(outcome, run, ["The memory was not changed: the run hit its cap."])
         return
 
+    context.report.stage_started("memory", "updating the topic's memory")
     result = await ask_one(client, chairman, messages, MEMORY_MAX_TOKENS)
     outcome.calls.append(_record(Call("memory", result), context.catalog))
     if result.completion is None:

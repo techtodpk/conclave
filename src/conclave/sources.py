@@ -15,6 +15,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
+from conclave import __version__
 from conclave.budget import PASSAGE_CHARS
 from conclave.client import Source
 
@@ -22,7 +23,9 @@ FETCH_TIMEOUT_SECONDS = 15.0
 FETCH_MAX_BYTES = 3_000_000
 FETCH_AT_ONCE = 6
 MAX_PAGES = 16
-USER_AGENT = "Mozilla/5.0 (compatible; Conclave/0.5; +https://github.com/techtodpk/conclave)"
+USER_AGENT = (
+    f"Mozilla/5.0 (compatible; Conclave/{__version__}; +https://github.com/techtodpk/conclave)"
+)
 
 _URL = re.compile(r"https?://[^\s<>()\[\]\"'`]+")
 _TRAILING = ".,;:!?*_"

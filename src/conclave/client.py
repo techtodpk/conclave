@@ -131,7 +131,7 @@ class OpenRouterClient:
         if member.route != "api":
             raise ModelError(
                 f"{member.model} is set to route '{member.route}'. Only route 'api' works so far; "
-                "command-line routes arrive in milestone 7."
+                "command-line routes arrive in milestone 8."
             )
 
         body = {
