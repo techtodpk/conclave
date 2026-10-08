@@ -2,7 +2,22 @@
 
 Each milestone on the [roadmap](README.md#roadmap) is tagged in Git when it is complete. Work in progress and pending tasks are tracked in [project status](docs/STATUS.md).
 
-## Unreleased
+## Milestone 3: critique and chairman (2026-10-08)
+
+Tag: `milestone-3`. Version 0.3.0.
+
+- A full run now has three stages: every member answers, every member reviews the others' answers with the authors hidden behind letters and ranks them, and the chairman writes a one-page answer.
+- The one-page answer, `final.md`, has the answer, the key claims each labelled "agreed but unchecked", "single model" or "disputed", the disagreements, and open questions. It ends with which model wrote which response and the average peer ranking of each.
+- Reviews are saved in `critiques/`, and every ranking in `rankings.json`. A ranking not written in the expected form is recorded as unreadable and left out of the averages, never guessed.
+- Reviewers never see their own answer. The chairman sees response letters, not model names.
+- `--chairman <model id>` picks a different chairman for one run.
+- The budget check before a full run now covers all three stages. Each later stage is checked again before it starts, and a run that would go over its cap stops and keeps what it has.
+- If only one member answers, the review and the one-page answer are skipped. If the chairman fails, the answers and reviews are kept.
+- `meta.json` lists every call with its stage.
+- CI moved to current action versions on Node.js 24, and tests Python 3.11 and 3.14.
+- Checked against the live OpenRouter API on Windows: a full run with three members, three reviews and the chairman's page cost $0.066, and all three rankings were readable.
+
+Documentation since milestone 2:
 
 - README: a "what works today" table, measured costs from the first live runs, and corrected descriptions of stages that are not built yet.
 - New [project status](docs/STATUS.md) page: scope, every milestone's tasks with what is done and pending, and known issues.

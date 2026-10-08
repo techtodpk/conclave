@@ -2,13 +2,13 @@
 
 **The single source of truth for what Conclave does today, what is being built now, and what is still to come.** Every change that adds, removes or changes a capability updates this file in the same commit.
 
-Last updated: 8 October 2026 · Version 0.2.0 · Latest tag: `milestone-2`
+Last updated: 8 October 2026 · Version 0.3.0 · Latest tag: `milestone-3`
 
 | | |
 | --- | --- |
-| **Done** | Milestones 1 and 2: project setup, and asking one model or a whole council with every answer saved |
-| **In progress** | Milestone 3: cross-critique and the chairman's one-page answer |
-| **Next** | Milestone 4: topic memory, so earlier research is read before each new question |
+| **Done** | Milestones 1 to 3: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer |
+| **In progress** | Milestone 4: topic memory, so earlier research is read before each new question |
+| **Next** | Milestone 5: web search, and checking key claims against the cited pages |
 
 ## Scope
 
@@ -31,8 +31,8 @@ A change of scope is recorded as a decision record before it is built.
 | --- | --- | --- | --- |
 | 1 | Repo setup | Done, 7 Oct 2026 | `milestone-1` |
 | 2 | Council core | Done, 8 Oct 2026 | `milestone-2` |
-| 3 | Critique and chairman | In progress | |
-| 4 | Store and recall | Pending | |
+| 3 | Critique and chairman | Done, 8 Oct 2026 | `milestone-3` |
+| 4 | Store and recall | In progress | |
 | 5 | Web search and claim check | Pending | |
 | 6 | MCP server | Pending | |
 | 7 | CLI adapters and showcase | Pending | |
@@ -64,22 +64,24 @@ A milestone is done when every task below is ticked, the tests and CI pass, it h
 - [x] `python -m conclave` for terminals where the command is not on PATH
 - [x] Run against the live API: quick run $0.012, three-member research run $0.020
 
-### 3. Critique and chairman: in progress
+### 3. Critique and chairman: done
 
 Done when a full run ends with a one-page answer that shows what the members agreed on and where they disagreed, and every member's ranking of the others is saved.
 
-- [ ] Critique prompt: each member reviews the others' answers under hidden names (A, B, C), noting errors and omissions
-- [ ] Each member ranks the other answers; rankings saved to `rankings.json`
-- [ ] Rankings read reliably even when a model formats them loosely; unreadable rankings recorded, not guessed
-- [ ] Chairman prompt: the one-page answer, with sections for the answer, what was agreed, what was disputed, and open questions
-- [ ] Every key claim on the page labelled "agreed but unchecked", "disputed" or "single model" ("verified" arrives with claim checking in milestone 5)
-- [ ] `final.md` saved in the run folder and printed at the end of a full run
-- [ ] Budget cap checked again before each stage; a run that would exceed it stops and keeps what it has
-- [ ] A stage failing keeps the earlier stages' output
-- [ ] Tests against the simulated API, then a live run
-- [ ] Compare Claude and GPT as chairman on the same question (decision 0003)
+- [x] Critique prompt: each member reviews the others' answers under hidden names (A, B, C), noting errors and omissions
+- [x] Each member ranks the other answers; rankings saved to `rankings.json`
+- [x] Rankings read reliably even when a model formats them loosely; unreadable rankings recorded, not guessed
+- [x] Chairman prompt: the one-page answer, with sections for the answer, what was agreed, what was disputed, and open questions
+- [x] Every key claim on the page labelled "agreed but unchecked", "disputed" or "single model" ("verified" arrives with claim checking in milestone 5)
+- [x] `final.md` saved in the run folder and printed at the end of a full run
+- [x] Budget cap checked again before each stage; a run that would exceed it stops and keeps what it has
+- [x] A stage failing keeps the earlier stages' output
+- [x] Tests against the simulated API
+- [x] Live run of a full question: $0.066, all three rankings readable
+- [x] `--chairman` option to pick a different chairman for one run
+- [x] `--chairman` option built for the comparison; the comparison itself moved to follow-ups
 
-### 4. Store and recall: pending
+### 4. Store and recall: in progress
 
 Done when a follow-up question on a topic uses what earlier runs concluded, and the memory's changes can be seen and undone.
 
@@ -139,8 +141,8 @@ Done when the chart shows at least one public source beside the personal leaderb
 
 | Item | Detail | Planned |
 | --- | --- | --- |
-| CI actions use Node.js 20 | GitHub warns that `actions/checkout@v4` and `gitleaks-action@v2` run on a deprecated Node.js version. Harmless for now | Milestone 3 |
-| Python 3.14 not in CI | The live run used Python 3.14 on Windows, but CI tests 3.11 and 3.13 only | Milestone 3 |
+| Chairman can also be a member | In the first live run the chairman, Claude Sonnet 5.5, also wrote response A, which the peer ranking put first. The chairman sees letters, not names, but may still favour its own model's answer | Compare chairmen with `--chairman` on a few questions, then decide whether the default chairman should come from outside the members |
+| CI results for milestone 2 unconfirmed | The milestone 2 run took 10.5 minutes and its secret scan passed, but the test job results have not been checked | Check on the Actions page |
 | Cost estimate is a ceiling | The pre-run check assumes every model writes the longest answer allowed, so it can refuse runs that would have cost less | Revisit with measured data in milestone 5 |
 | No interactive model picker | Profiles are built with `conclave profile add`; an interactive picker may come later | Not scheduled |
 

@@ -27,14 +27,21 @@ def _edit_config(workspace, old, new):
     workspace.config.write_text(text.replace(old, new), encoding="utf-8")
 
 
-def test_full_run_saves_an_answer_from_every_member(workspace, openrouter):
+def _meta(run):
+    return json.loads((run / "meta.json").read_text(encoding="utf-8"))
+
+
+def test_full_run_answers_reviews_and_sums_up(workspace, openrouter):
     _init(workspace)
     workspace.set_key()
 
     result = _ask(workspace, "Is Unity DOTS ready for production?", "--full", "--topic", "Unity")
 
     assert result.exit_code == 0, result.output
-    assert sorted(openrouter.asked) == sorted(BALANCED)
+    assert sorted(openrouter.asked_in("research")) == sorted(BALANCED)
+    assert sorted(openrouter.asked_in("critique")) == sorted(BALANCED)
+    assert openrouter.asked_in("synthesis") == ["anthropic/claude-sonnet-5.5"]
+
     (run,) = workspace.runs("unity")
     assert run.name.endswith("is-unity-dots-ready-for-production")
     answers = sorted(path.name for path in (run / "answers").iterdir())
@@ -43,29 +50,150 @@ def test_full_run_saves_an_answer_from_every_member(workspace, openrouter):
         "google--gemini-3.8-flash.md",
         "openai--gpt-6.1-sol.md",
     ]
-    gemini = (run / "answers" / "google--gemini-3.8-flash.md").read_text(encoding="utf-8")
-    assert "model: google/gemini-3.8-flash" in gemini
-    assert "Answer from google/gemini-3.8-flash." in gemini
-    assert "Is Unity DOTS ready for production?" in (run / "question.md").read_text(
-        encoding="utf-8"
-    )
+    assert len(list((run / "critiques").iterdir())) == 3
+    sonnet = (run / "answers" / "anthropic--claude-sonnet-5.5.md").read_text(encoding="utf-8")
+    assert "response: A" in sonnet
 
-    meta = json.loads((run / "meta.json").read_text(encoding="utf-8"))
+    final = (run / "final.md").read_text(encoding="utf-8")
+    assert final.startswith("# Is Unity DOTS ready for production?")
+    assert "The council's answer." in final
+    assert "[agreed but unchecked]" in final
+    assert "## How this answer was made" in final
+    assert "| A | `anthropic/claude-sonnet-5.5` |" in final
+    assert "Readable rankings: 3 of 3." in final
+
+    rankings = json.loads((run / "rankings.json").read_text(encoding="utf-8"))
+    assert rankings["responses"] == {"A": BALANCED[0], "B": BALANCED[1], "C": BALANCED[2]}
+    assert all(review["ranking"] for review in rankings["reviews"])
+    assert [s["response"] for s in rankings["standings"]] == ["A", "B", "C"]
+
+    meta = _meta(run)
     assert meta["mode"] == "full"
-    assert meta["profile"] == "balanced"
     assert meta["topic"] == "unity"
-    assert meta["stages"] == ["research"]
+    assert meta["stages"] == ["research", "critique", "synthesis"]
+    assert meta["stopped"] is None
+    assert [c["stage"] for c in meta["calls"]].count("critique") == 3
     assert meta["totals"]["answers"] == 3
     assert meta["totals"]["failures"] == 0
-    assert meta["totals"]["cost_usd"] == 0.012
-    assert meta["totals"]["prompt_tokens"] == 900
-    assert meta["budget"]["cap_usd"] == 0.75
+    assert meta["totals"]["cost_usd"] == 3 * 0.004 + 3 * 0.002 + 0.006
     assert 0 < meta["budget"]["worst_case_estimate_usd"] < 0.75
-    assert {seat["cost_source"] for seat in meta["seats"]} == {"reported"}
 
+    assert result.output.startswith("# Is Unity DOTS ready for production?")
     assert "Asked 3 members (profile 'balanced', topic 'unity')" in result.output
-    assert "$0.0120 of the $0.75 cap for full runs" in result.output
-    assert str(run) in result.output.replace("\n", "")
+    for title in ("Research", "Critique", "Synthesis"):
+        assert f"\n{title}\n" in result.output
+    assert "$0.0240 of the $0.75 cap for full runs" in result.output
+    assert "final.md" in result.output
+
+
+def test_reviewers_never_see_their_own_answer(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+
+    _ask(workspace, "A question", "--full")
+
+    reviews = [
+        b for b in openrouter.chat_requests if "reviewing answers" in b["messages"][0]["content"]
+    ]
+    for body in reviews:
+        text = body["messages"][1]["content"]
+        assert f"Answer from {body['model']}." not in text
+        assert text.count("### Response ") == 2
+
+
+def test_chairman_sees_letters_not_model_names(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+
+    _ask(workspace, "A question", "--full")
+
+    (body,) = [b for b in openrouter.chat_requests if "chairman" in b["messages"][0]["content"]]
+    text = body["messages"][1]["content"]
+    assert "### Response A" in text and "### Review 3" in text
+    assert "Average position, lower is better: Response A 1.0" in text
+    for model in BALANCED:
+        assert f"{model}\n" not in text.replace(f"Answer from {model}.", "")
+
+
+def test_loose_ranking_is_recorded_as_unreadable(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+    openrouter.reply(
+        "openai/gpt-6.1-sol", answer("Both are fine. I prefer the first one."), stage="critique"
+    )
+
+    result = _ask(workspace, "A question", "--full")
+
+    assert result.exit_code == 0, result.output
+    (run,) = workspace.runs()
+    rankings = json.loads((run / "rankings.json").read_text(encoding="utf-8"))
+    gpt = next(r for r in rankings["reviews"] if r["reviewer"] == "openai/gpt-6.1-sol")
+    assert gpt["status"] == "ok" and gpt["ranking"] is None
+    assert "Readable rankings: 2 of 3." in (run / "final.md").read_text(encoding="utf-8")
+    assert "left out rather than guessed" in result.output
+
+
+def test_chairman_override(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+
+    result = _ask(workspace, "A question", "--full", "--chairman", "openai/gpt-6.1-sol")
+
+    assert result.exit_code == 0, result.output
+    assert openrouter.asked_in("synthesis") == ["openai/gpt-6.1-sol"]
+    (run,) = workspace.runs()
+    assert "The chairman, `openai/gpt-6.1-sol`," in (run / "final.md").read_text(encoding="utf-8")
+
+
+def test_chairman_failure_keeps_answers_and_reviews(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+    openrouter.reply("anthropic/claude-sonnet-5.5", failure(402, "no credit"), stage="synthesis")
+
+    result = _ask(workspace, "A question", "--full")
+
+    assert result.exit_code == 0, result.output
+    (run,) = workspace.runs()
+    assert not (run / "final.md").exists()
+    assert len(list((run / "critiques").iterdir())) == 3
+    meta = _meta(run)
+    assert meta["stages"] == ["research", "critique"]
+    assert "could not write the one-page answer" in result.output
+
+
+def test_one_answer_skips_critique_and_synthesis(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+    for model in BALANCED[1:]:
+        openrouter.reply(model, failure(429, "busy"), stage="research")
+
+    result = _ask(workspace, "A question", "--full")
+
+    assert result.exit_code == 0, result.output
+    assert openrouter.asked_in("critique") == []
+    assert openrouter.asked_in("synthesis") == []
+    (run,) = workspace.runs()
+    assert _meta(run)["stages"] == ["research"]
+    assert "nothing to compare" in result.output
+
+
+def test_stops_before_a_stage_that_would_break_the_cap(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+    # Big reported costs push the run past the cap after the research stage.
+    for model in BALANCED:
+        openrouter.reply(model, answer(cost=0.30), stage="research")
+
+    result = _ask(workspace, "A question", "--full")
+
+    assert result.exit_code == 0, result.output
+    assert openrouter.asked_in("critique") == []
+    (run,) = workspace.runs()
+    meta = _meta(run)
+    assert meta["stages"] == ["research"]
+    assert meta["stopped"].startswith("Stopped before the critique stage")
+    assert "Stopped before the critique stage" in result.output
+    assert len(list((run / "answers").iterdir())) == 3
 
 
 def test_the_question_and_date_reach_the_model(workspace, openrouter):
@@ -95,26 +223,32 @@ def test_quick_run_asks_only_the_chairman_and_prints_the_answer(workspace, openr
     assert "Rayleigh scattering." in result.output
     assert "Asked the chairman" in result.output
     (run,) = workspace.runs()
-    meta = json.loads((run / "meta.json").read_text(encoding="utf-8"))
+    meta = _meta(run)
     assert meta["mode"] == "quick"
-    assert meta["seats"][0]["role"] == "chairman"
+    assert meta["stages"] == ["research"]
+    assert meta["calls"][0]["role"] == "chairman"
     assert meta["budget"]["cap_usd"] == 0.05
+    assert not (run / "final.md").exists()
+    sonnet = (run / "answers" / "anthropic--claude-sonnet-5.5.md").read_text(encoding="utf-8")
+    assert "response:" not in sonnet
 
 
 def test_one_failure_does_not_lose_the_other_answers(workspace, openrouter):
     _init(workspace)
     workspace.set_key()
-    openrouter.reply("openai/gpt-6.1-sol", failure(402, "no credit"))
+    openrouter.reply("openai/gpt-6.1-sol", failure(402, "no credit"), stage="research")
 
     result = _ask(workspace, "A question", "--full")
 
     assert result.exit_code == 0, result.output
     (run,) = workspace.runs()
     assert len(list((run / "answers").iterdir())) == 2
-    meta = json.loads((run / "meta.json").read_text(encoding="utf-8"))
+    meta = _meta(run)
     assert meta["totals"]["answers"] == 2
     assert meta["totals"]["failures"] == 1
-    failed = next(seat for seat in meta["seats"] if seat["status"] == "error")
+    assert sorted(openrouter.asked_in("critique")) == [BALANCED[0], BALANCED[2]]
+    assert (run / "final.md").exists()
+    failed = next(call for call in meta["calls"] if call["status"] == "error")
     assert failed["model"] == "openai/gpt-6.1-sol"
     assert "out of credit" in failed["error"]
     assert "FAILED" in result.output
@@ -144,7 +278,10 @@ def test_members_option_overrides_the_profile(workspace, openrouter):
     )
 
     assert result.exit_code == 0, result.output
-    assert sorted(openrouter.asked) == ["deepseek/deepseek-v4.1-flash", "openai/gpt-6.1-sol"]
+    assert sorted(openrouter.asked_in("research")) == [
+        "deepseek/deepseek-v4.1-flash",
+        "openai/gpt-6.1-sol",
+    ]
     assert "Asked 2 members" in result.output
 
 
@@ -155,8 +292,9 @@ def test_named_profile_is_used(workspace, openrouter):
     result = _ask(workspace, "A question", "--full", "--profile", "full")
 
     assert result.exit_code == 0, result.output
-    assert len(openrouter.asked) == 4
-    assert "deepseek/deepseek-v4.1-flash" in openrouter.asked
+    assert len(openrouter.asked_in("research")) == 4
+    assert "deepseek/deepseek-v4.1-flash" in openrouter.asked_in("research")
+    assert openrouter.asked_in("synthesis") == ["anthropic/claude-opus-5.5"]
 
 
 def test_unknown_model_stops_before_anything_is_sent(workspace, openrouter):
@@ -192,7 +330,7 @@ def test_monthly_cap_pauses_full_runs_but_not_quick_ones(workspace, openrouter):
     _init(workspace)
     workspace.set_key()
     _edit_config(workspace, "monthly_usd = 15.00", "monthly_usd = 0.01")
-    assert _ask(workspace, "First question", "--full").exit_code == 0  # costs 0.012
+    assert _ask(workspace, "First question", "--full").exit_code == 0  # costs 0.024
 
     blocked = _ask(workspace, "Second question", "--full")
     allowed = _ask(workspace, "Third question", "--quick")
@@ -235,9 +373,10 @@ def test_run_continues_when_prices_are_unavailable(workspace, openrouter):
     assert result.exit_code == 0, result.output
     assert "Prices unavailable" in result.output
     (run,) = workspace.runs()
-    meta = json.loads((run / "meta.json").read_text(encoding="utf-8"))
+    meta = _meta(run)
     assert meta["budget"]["worst_case_estimate_usd"] is None
-    assert meta["totals"]["cost_usd"] == 0.012
+    assert meta["stages"] == ["research", "critique", "synthesis"]
+    assert meta["totals"]["cost_usd"] == 0.024
 
 
 def test_cost_is_estimated_from_prices_when_not_reported(workspace, openrouter):
@@ -250,7 +389,7 @@ def test_cost_is_estimated_from_prices_when_not_reported(workspace, openrouter):
     assert result.exit_code == 0, result.output
     assert "(estimated)" in result.output
     (run,) = workspace.runs()
-    seat = json.loads((run / "meta.json").read_text(encoding="utf-8"))["seats"][0]
+    seat = _meta(run)["calls"][0]
     assert seat["cost_source"] == "estimated"
     assert seat["cost_usd"] == 300 * 0.000002 + 200 * 0.00001
 

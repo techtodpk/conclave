@@ -24,7 +24,7 @@ Conclave is a local tool that sends one question to several LLMs with web search
 5. **Synthesize.** The chairman writes one page: the answer, what the members agreed on, what they disputed, and the sources. Every key claim carries a label.
 6. **Save.** Store the run, then update the topic's summary, disputes and sources.
 
-A full run with N members makes 2N + 2 model calls. Quick mode skips stages 2 to 4 and asks the chairman alone, with the recalled store.
+A full run with N members makes 2N + 2 model calls once claim checking exists; until milestone 5 it makes 2N + 1. Quick mode skips stages 2 to 4 and asks the chairman alone, with the recalled store.
 
 ## Components
 

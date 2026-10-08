@@ -2,7 +2,7 @@
 
 This guide takes you from nothing to asking your first question. It covers Windows, macOS and Linux.
 
-**What you can test today (milestone 2):** installing the tool, asking a question to one model or to a whole council, and finding every answer saved in your research store. Cross-critique between models and the one-page synthesis arrive in milestone 3. The README's [what works today](../README.md#what-works-today) table lists every capability and when it arrives.
+**What you can test today (milestone 3):** installing the tool, asking a question to one model or to a whole council, having the members review each other, and reading the chairman's one-page answer. Everything is saved in your research store. The README's [what works today](../README.md#what-works-today) table lists every capability and when it arrives.
 
 ## 1. What you need
 
@@ -62,7 +62,7 @@ If the terminal says `conclave` is not recognised, use `python -m conclave --ver
 Expected output:
 
 ```
-conclave 0.2.0
+conclave 0.3.0
 ```
 
 ## 5. First run
@@ -145,23 +145,38 @@ Saved to: /home/you/conclave-research/topics/general/runs/2026-10-07-143205-what
 
 Your token counts, cost and time will differ.
 
-Then a full run, which asks every member of the profile at the same time and files it under a topic:
+Then a full run, filed under a topic:
 
 ```bash
 conclave ask "What is the difference between a process and a thread?" --full --topic operating-systems
 ```
 
-Open the folder named after "Saved to". You should find:
+A full run has three stages:
+
+1. **Research.** Every member of the profile answers on its own, at the same time.
+2. **Critique.** Each member reviews the other answers, which are labelled A, B, C so the reviewer does not know who wrote them, and ranks them.
+3. **Synthesis.** The chairman reads the answers and reviews and writes a one-page answer. Each key claim is labelled "agreed but unchecked", "single model" or "disputed", and the disagreements are set out.
+
+The one-page answer is printed, followed by what each stage cost. Open the folder named after "Saved to". You should find:
 
 | File | What it holds |
 | --- | --- |
+| `final.md` | The one-page answer, ending with which model wrote which response and how the others ranked it |
 | `question.md` | The question, the time, the topic, the mode and the profile |
-| `answers/<vendor>--<model>.md` | One file per member, each ending with its key claims and what it is unsure of |
-| `meta.json` | Each model's token counts, cost and time, plus the run total |
+| `answers/<vendor>--<model>.md` | Each member's own answer, with its response letter |
+| `critiques/<vendor>--<model>.md` | Each member's review of the others |
+| `rankings.json` | Every member's ranking of the others, and the average position of each answer |
+| `meta.json` | Every call's model, tokens, cost and time, plus the run total |
 
-**What it costs.** With the default settings and prices as listed on 7 October 2026, a quick run costs at most about 2 cents and a full run with the `balanced` profile at most about 4 cents. Before anything is sent, Conclave works out the most the run could cost and refuses it if that is above the cap in your config. Most runs cost well under that ceiling, because models rarely use the full answer length.
+A quick run saves only `question.md`, the chairman's answer and `meta.json`.
 
-If one member fails, for example because its provider is busy, the other answers are still saved and the failure is shown. If no model answers, nothing is saved.
+To try a different chairman for one run, add `--chairman <model id>`.
+
+**What it costs.** With the default settings and prices as listed on 7 October 2026, a quick run costs at most about 2 cents and a full run with the `balanced` profile at most about 12 cents. Before anything is sent, Conclave works out the most the run could cost and refuses it if that is above the cap in your config. Most runs cost well under that ceiling, because models rarely use the full answer length.
+
+Before each later stage, Conclave checks again: if that stage could take the run over its cap, it stops and keeps everything up to that point.
+
+If one member fails, for example because its provider is busy, the others carry on and the failure is shown. If only one member answers, there is nothing to compare, so the review and the one-page answer are skipped. If the chairman fails, the answers and reviews are still saved. If no model answers, nothing is saved.
 
 ## 8. Choose your council
 
@@ -246,6 +261,8 @@ All tests should pass. They use a simulated OpenRouter, so they need no key, cos
 | `This run could cost up to ...` | The worst-case cost is above your cap | Lower `max_answer_tokens`, choose cheaper models, or raise the cap in `[budget]` |
 | `full runs are paused` | This month's recorded spending reached the monthly cap | Raise `monthly_usd` in `[budget]`. Quick runs still work |
 | `Rate limited` on one member | That model's provider is busy | Run again shortly. The other members' answers were saved |
+| `Stopped before the critique stage` (or synthesis) | That stage could have taken the run over its cap | The earlier stages are saved. Raise `full_run_usd` in `[budget]`, or lower `max_answer_tokens` |
+| A review's ranking `left out rather than guessed` | The model did not write its ranking in the expected form | Nothing to fix; that one ranking is left out of the averages. If it happens often with one model, choose another |
 | `Config problem: ...` | A value in the config file is invalid | The message names the setting and what it must be. Fix that line and run `conclave config` again |
 | You want to start over with the default config | | Rename or delete the config file, then run `conclave init`. Your research store is not touched |
 

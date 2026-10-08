@@ -12,3 +12,4 @@ One short page per design choice: the context, what was decided, and what follow
 | [0006](0006-summary-as-claims-updated-by-patch.md) | The summary is a list of claims, updated by patch, automatically | 2026-10-07 |
 | [0007](0007-each-member-searches-for-itself.md) | Each member searches the web for itself | 2026-10-07 |
 | [0008](0008-research-runs-checks-and-what-is-saved.md) | Research runs: checks before sending, and what is saved | 2026-10-07 |
+| [0009](0009-critique-and-synthesis.md) | How members review each other and how the chairman sums up | 2026-10-08 |

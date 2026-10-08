@@ -4,17 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import re
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import typer
 
 from conclave import __version__
-from conclave.budget import cost_of, worst_case_cost
-from conclave.catalog import CatalogError, ModelInfo, closest, fetch_models, search
-from conclave.client import OpenRouterClient
+from conclave.catalog import CatalogError, ModelInfo, fetch_models, search
 from conclave.config import (
     MIN_MEMBERS,
     Config,
@@ -25,20 +22,11 @@ from conclave.config import (
     load_config,
     parse_member,
 )
-from conclave.council import Seat, SeatResult, research, research_messages
+from conclave.council import Seat
 from conclave.http import new_client
 from conclave.keys import MissingKeyError, load_api_key
-from conclave.store import (
-    DEFAULT_TOPIC,
-    Run,
-    create_run,
-    init_store,
-    month_spend,
-    slugify,
-    write_answer,
-    write_meta,
-    write_question,
-)
+from conclave.runner import Outcome, Refused, cap_text, check_ids, dollars, run_question
+from conclave.store import DEFAULT_TOPIC, init_store, month_spend, slugify
 
 app = typer.Typer(
     help="Conclave: an LLM council that remembers.",
@@ -95,35 +83,12 @@ def _config_path(config: Path | None) -> Path:
     return (config or default_config_path()).expanduser()
 
 
-def _dollars(amount: float) -> str:
-    """A cost: small amounts get enough digits to be meaningful."""
-    return f"${amount:.2f}" if amount >= 1 else f"${amount:.4f}"
-
-
-def _cap(amount: float) -> str:
-    """A budget cap, as set in the config."""
-    return f"${amount:.2f}"
-
-
 def _split_ids(text: str, what: str) -> list[Member]:
     ids = [part.strip() for part in text.split(",") if part.strip()]
     try:
         return [parse_member(model_id, what) for model_id in ids]
     except ConfigError as error:
         raise Stop(str(error)) from None
-
-
-def _check_ids(members: list[Member], catalog: dict[str, ModelInfo]) -> None:
-    """Stop with suggestions if any model id is not in OpenRouter's list."""
-    for member in dict.fromkeys(members):
-        if member.model in catalog:
-            continue
-        near = closest(catalog, member.model)
-        hint = f" Did you mean: {', '.join(near)}?" if near else ""
-        raise Stop(
-            f"'{member.model}' is not in OpenRouter's model list.{hint} "
-            "Run `conclave models --search <text>` to look for it."
-        )
 
 
 # --- init and config ----------------------------------------------------------
@@ -322,7 +287,10 @@ def profile_add(
                 raise Stop(
                     f"{error}. Use --no-check to add the profile without checking the ids."
                 ) from None
-            _check_ids([*seats, chair[0], check[0]], catalog)
+            try:
+                check_ids([*seats, chair[0], check[0]], catalog)
+            except Refused as refused:
+                raise Stop(str(refused)) from None
     except Stop as stop:
         raise _fail(str(stop)) from None
 
@@ -348,139 +316,6 @@ def profile_add(
 # --- ask ------------------------------------------------------------------------
 
 
-@dataclass
-class AskResult:
-    run: Run | None  # None when no model answered, so nothing was saved
-    results: list[SeatResult]
-    costs: list[tuple[float | None, str]]
-    total_cost: float
-    estimate: float | None
-    notes: list[str] = field(default_factory=list)
-
-
-async def _ask(
-    question: str,
-    seats: list[Seat],
-    settings: Config,
-    api_key: str,
-    topic: str,
-    mode: str,
-    profile_name: str,
-    started: datetime,
-) -> AskResult:
-    cap = settings.budget.cap_for(mode)
-    notes: list[str] = []
-    members = [seat.member for seat in seats]
-
-    async with new_client() as http:
-        catalog: dict[str, ModelInfo] = {}
-        try:
-            catalog = await fetch_models(http)
-        except CatalogError as error:
-            notes.append(f"Prices unavailable, so the cost could not be estimated ({error}).")
-
-        estimate: float | None = None
-        if catalog:
-            _check_ids(members, catalog)
-            prompt_text = "\n".join(
-                m["content"] for m in research_messages(question, started.date())
-            )
-            estimate = worst_case_cost(members, catalog, prompt_text, settings.max_answer_tokens)
-            if estimate > cap:
-                raise Stop(
-                    f"This run could cost up to {_dollars(estimate)}, above the {_cap(cap)} "
-                    f"cap for {mode} runs. Nothing was sent. Lower run.max_answer_tokens, "
-                    f"choose cheaper models, or raise the cap in the config file."
-                )
-
-        client = OpenRouterClient(http, api_key)
-        results = await research(
-            client, seats, question, settings.max_answer_tokens, started.date()
-        )
-
-    if not any(result.ok for result in results):
-        # Nothing worth keeping: the store holds research, not failed attempts.
-        return AskResult(
-            run=None,
-            results=results,
-            costs=[(None, "unknown")] * len(results),
-            total_cost=0.0,
-            estimate=estimate,
-            notes=notes,
-        )
-
-    run = create_run(settings.store_path, topic, question, started)
-    write_question(
-        run,
-        question,
-        {
-            "Asked": started.isoformat(timespec="seconds"),
-            "Topic": run.topic,
-            "Mode": mode,
-            "Profile": profile_name,
-        },
-    )
-
-    costs: list[tuple[float | None, str]] = []
-    records: list[dict[str, Any]] = []
-    for result in results:
-        record: dict[str, Any] = {
-            "model": result.seat.member.model,
-            "route": result.seat.member.route,
-            "role": result.seat.role,
-        }
-        if result.completion is None:
-            costs.append((None, "unknown"))
-            record.update(status="error", error=result.error)
-        else:
-            cost, source = cost_of(result.completion, catalog.get(result.seat.member.model))
-            costs.append((cost, source))
-            answer = write_answer(
-                run, result.seat.member.model, result.seat.role, result.completion.text
-            )
-            record.update(
-                status="ok",
-                prompt_tokens=result.completion.prompt_tokens,
-                completion_tokens=result.completion.completion_tokens,
-                cost_usd=cost,
-                cost_source=source,
-                seconds=round(result.completion.seconds, 2),
-                answer_file=f"answers/{answer.name}",
-            )
-        records.append(record)
-
-    total_cost = sum(cost for cost, _ in costs if cost is not None)
-    finished = datetime.now().astimezone()
-    write_meta(
-        run,
-        {
-            "conclave_version": __version__,
-            "question": question,
-            "topic": run.topic,
-            "mode": mode,
-            "profile": profile_name,
-            "stages": ["research"],
-            "started": started.isoformat(timespec="seconds"),
-            "finished": finished.isoformat(timespec="seconds"),
-            "seats": records,
-            "totals": {
-                "prompt_tokens": sum(r.get("prompt_tokens", 0) for r in records),
-                "completion_tokens": sum(r.get("completion_tokens", 0) for r in records),
-                "cost_usd": round(total_cost, 6),
-                "answers": sum(1 for r in records if r["status"] == "ok"),
-                "failures": sum(1 for r in records if r["status"] == "error"),
-            },
-            "budget": {
-                "cap_usd": cap,
-                "worst_case_estimate_usd": None if estimate is None else round(estimate, 6),
-            },
-        },
-    )
-    return AskResult(
-        run=run, results=results, costs=costs, total_cost=total_cost, estimate=estimate, notes=notes
-    )
-
-
 @app.command()
 def ask(
     question: Annotated[str, typer.Argument(help="The question to research.")],
@@ -496,11 +331,21 @@ def ask(
             "--members", help="Comma-separated model ids to ask instead of the profile's members."
         ),
     ] = None,
-    full: Annotated[bool, typer.Option("--full", help="Ask every council member.")] = False,
+    chairman: Annotated[
+        str | None,
+        typer.Option("--chairman", help="Model id to use as chairman instead of the profile's."),
+    ] = None,
+    full: Annotated[
+        bool,
+        typer.Option(
+            "--full",
+            help="Ask every member, have them review each other, then the chairman sums up.",
+        ),
+    ] = False,
     quick: Annotated[bool, typer.Option("--quick", help="Ask the chairman only.")] = False,
     config: ConfigOption = None,
 ) -> None:
-    """Ask the council a question and save every answer to your research store."""
+    """Ask the council a question and save the run to your research store."""
     config_path = _config_path(config)
     settings = _load(config_path)
     started = datetime.now().astimezone()
@@ -519,6 +364,14 @@ def ask(
         except ConfigError as error:
             raise Stop(str(error)) from None
 
+        chair_member = chosen.chairman
+        if chairman:
+            picked = _split_ids(chairman, "--chairman")
+            if len(picked) != 1:
+                raise Stop("--chairman takes exactly one model id.")
+            chair_member = picked[0]
+        chair = Seat(chair_member, "chairman")
+
         if members:
             override = _split_ids(members, "--members")
             if len(override) < MIN_MEMBERS:
@@ -527,9 +380,9 @@ def ask(
         elif mode == "full":
             seats = [Seat(member, "member") for member in chosen.members]
         else:
-            seats = [Seat(chosen.chairman, "chairman")]
+            seats = [chair]
 
-        for seat in seats:
+        for seat in [*seats, chair]:
             if seat.member.route != "api":
                 raise Stop(
                     f"{seat.member.model} is set to route '{seat.member.route}'. Only route 'api' "
@@ -541,7 +394,7 @@ def ask(
         monthly = settings.budget.monthly_usd
         if mode == "full" and spent >= monthly:
             raise Stop(
-                f"This month's spending is {_dollars(spent)}, at or above the {_cap(monthly)} "
+                f"This month's spending is {dollars(spent)}, at or above the {cap_text(monthly)} "
                 "monthly cap, so full runs are paused. Quick runs still work. "
                 "Raise budget.monthly_usd in the config file to continue."
             )
@@ -551,47 +404,83 @@ def ask(
         except MissingKeyError as error:
             raise Stop(str(error)) from None
 
-        outcome = asyncio.run(
-            _ask(question, seats, settings, api_key, topic, mode, chosen.name, started)
-        )
+        try:
+            outcome = asyncio.run(
+                run_question(
+                    question,
+                    seats,
+                    chair if mode == "full" else None,
+                    settings,
+                    api_key,
+                    topic,
+                    mode,
+                    chosen.name,
+                    started,
+                )
+            )
+        except Refused as refused:
+            raise Stop(str(refused)) from None
     except Stop as stop:
         raise _fail(str(stop)) from None
 
-    _report(outcome, settings, mode, chosen.name, slugify(topic, fallback=DEFAULT_TOPIC), spent)
-    if not any(result.ok for result in outcome.results):
+    _report(outcome, settings, chosen.name, slugify(topic, fallback=DEFAULT_TOPIC), spent)
+    if outcome.run is None:
         raise typer.Exit(code=1)
 
 
-def _report(
-    outcome: AskResult, settings: Config, mode: str, profile_name: str, topic: str, spent: float
-) -> None:
-    for note in outcome.notes:
-        typer.echo(f"Note: {note}")
+STAGE_TITLES = {"research": "Research", "critique": "Critique", "synthesis": "Synthesis"}
 
-    answered = [r for r in outcome.results if r.ok]
-    if mode == "quick" and answered:
-        typer.echo(answered[0].completion.text)  # type: ignore[union-attr]
+
+def _report(
+    outcome: Outcome, settings: Config, profile_name: str, topic: str, spent: float
+) -> None:
+    mode = outcome.mode
+    for note in outcome.notes:
+        if note.startswith("Prices unavailable"):
+            typer.echo(f"Note: {note}")
+
+    answered = [c for c in outcome.calls if c.stage == "research" and c.result.ok]
+    if outcome.final_text:
+        typer.echo(outcome.final_text)
+        typer.echo("---")
+    elif mode == "quick" and answered:
+        typer.echo(answered[0].result.completion.text)  # type: ignore[union-attr]
         typer.echo("")
         typer.echo("---")
 
-    who = "the chairman" if mode == "quick" else f"{len(outcome.results)} members"
+    research_calls = [c for c in outcome.calls if c.stage == "research"]
+    who = "the chairman" if mode == "quick" else f"{len(research_calls)} members"
     typer.echo(f"Asked {who} (profile '{profile_name}', topic '{topic}')")
-    typer.echo("")
 
-    width = max(len(r.seat.member.model) for r in outcome.results)
-    for result, (cost, source) in zip(outcome.results, outcome.costs, strict=True):
-        name = result.seat.member.model.ljust(width)
-        if result.completion is None:
-            typer.echo(f"  {name}  FAILED  {result.error}")
+    width = max(len(c.result.seat.member.model) for c in outcome.calls)
+    for stage in ("research", "critique", "synthesis"):
+        calls = [c for c in outcome.calls if c.stage == stage]
+        if not calls:
             continue
-        done = result.completion
-        price = "cost unknown" if cost is None else _dollars(cost)
-        if source == "estimated":
-            price += " (estimated)"
-        typer.echo(
-            f"  {name}  ok  {done.prompt_tokens:>6} in  {done.completion_tokens:>6} out  "
-            f"{price}  {done.seconds:.1f}s"
-        )
+        typer.echo("")
+        if mode == "full":
+            typer.echo(STAGE_TITLES[stage])
+        for call in calls:
+            name = call.result.seat.member.model.ljust(width)
+            if call.result.completion is None:
+                typer.echo(f"  {name}  FAILED  {call.result.error}")
+                continue
+            done = call.result.completion
+            price = "cost unknown" if call.cost is None else dollars(call.cost)
+            if call.cost_source == "estimated":
+                price += " (estimated)"
+            typer.echo(
+                f"  {name}  ok  {done.prompt_tokens:>6} in  {done.completion_tokens:>6} out  "
+                f"{price}  {done.seconds:.1f}s"
+            )
+
+    for note in outcome.notes:
+        if not note.startswith("Prices unavailable"):
+            typer.echo("")
+            typer.echo(f"Note: {note}")
+    if outcome.stopped:
+        typer.echo("")
+        typer.echo(outcome.stopped)
 
     typer.echo("")
     if outcome.run is None:
@@ -600,16 +489,13 @@ def _report(
 
     cap = settings.budget.cap_for(mode)
     typer.echo(
-        f"Cost: {_dollars(outcome.total_cost)} of the {_cap(cap)} cap for {mode} runs. "
-        f"This month: {_dollars(spent + outcome.total_cost)} of "
-        f"{_cap(settings.budget.monthly_usd)}."
+        f"Cost: {dollars(outcome.total_cost)} of the {cap_text(cap)} cap for {mode} runs. "
+        f"This month: {dollars(spent + outcome.total_cost)} of "
+        f"{cap_text(settings.budget.monthly_usd)}."
     )
     typer.echo(f"Saved to: {outcome.run.path}")
-    if mode == "full":
-        typer.echo(
-            "Each answer is in the 'answers' folder. Cross-critique and the one-page "
-            "synthesis arrive in milestone 3."
-        )
+    if outcome.final_text:
+        typer.echo("The one-page answer is final.md; each answer and review is saved beside it.")
 
 
 if __name__ == "__main__":

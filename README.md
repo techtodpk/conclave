@@ -2,7 +2,7 @@
 
 **An LLM council that remembers.** Several models research the same question, critique each other, and save what they conclude to a research store on your own machine. Every later question on that topic starts from what the council already worked out.
 
-> **Status: milestone 2 of 8, version 0.2.0.** Conclave can ask one model or a whole council the same question and save every answer to your research store. It does not yet make the models critique each other, write a combined answer, remember earlier research, or search the web. See [what works today](#what-works-today), and [project status](docs/STATUS.md) for what is being built now and what is still to come.
+> **Status: milestone 3 of 8, version 0.3.0.** Conclave asks a council of models the same question, has each member review the others' answers with the authors hidden, and has a chairman write a one-page answer showing what the members agreed and disagreed on. It does not yet remember earlier research or search the web. See [what works today](#what-works-today), and [project status](docs/STATUS.md) for what is being built now and what is still to come.
 
 ## What works today
 
@@ -13,8 +13,8 @@
 | Save each run as plain files: question, one answer per model, tokens, cost and timings | Works | Milestone 2 |
 | List models with live prices; build and pick council profiles | Works | Milestone 2 |
 | Budget caps per run and per month, checked before anything is sent | Works | Milestone 2 |
-| Models critique each other with names hidden, then rank the answers | Not yet | Milestone 3 |
-| One-page combined answer showing what the models agreed and disagreed on | Not yet | Milestone 3 |
+| Members review each other's answers with the authors hidden, and rank them | Works | Milestone 3 |
+| Chairman's one-page answer, with every key claim labelled and the disagreements set out | Works | Milestone 3 |
 | Topic memory: earlier research is read before each new question | Not yet | Milestone 4 |
 | Search across your past research; personal model leaderboard | Not yet | Milestone 4 |
 | Web search, and checking key claims against the cited pages | Not yet | Milestone 5 |
@@ -22,9 +22,9 @@
 | Run members on your own Claude, Gemini or ChatGPT plan instead of the API | Not yet | Milestone 7 |
 | Public benchmark ranking chart | Not yet | Milestone 8 |
 
-**Until web search arrives, answers come from each model's training data.** Every answer lists its key claims with a confidence for each and says what it is unsure of, but nothing is checked against live sources yet.
+**Until web search arrives, answers come from each model's training data.** The one-page answer labels each key claim "agreed but unchecked", "single model" or "disputed"; the "verified" label arrives with claim checking in milestone 5.
 
-Milestone 2 was run against the live OpenRouter API on Windows with Python 3.14 on 8 October 2026. The automated tests run in CI on Windows, macOS and Linux with every push.
+Milestone 2 was run against the live OpenRouter API on Windows with Python 3.14 on 8 October 2026. Milestone 3 was run against the live API the same day. The automated tests run in CI on Windows, macOS and Linux with every push.
 
 ## Why this exists
 
@@ -52,7 +52,7 @@ The gaps Conclave is built to close:
 
 ## How it works
 
-This is the design for a full run. Today only stage 2, Research, is built, without web search; the others arrive in milestones 3 to 5. The first and last stages are what connect the debate to the memory.
+This is the design for a full run. Today stages 2, 3 and 5 are built: Research (without web search), Critique and Synthesize. Recall and Save arrive in milestone 4, and Verify in milestone 5. The first and last stages are what connect the debate to the memory.
 
 ```mermaid
 flowchart TD
@@ -95,7 +95,7 @@ Add your [OpenRouter](https://openrouter.ai/keys) key (the [setup guide](docs/SE
 
 ```bash
 conclave ask "Is Unity DOTS ready for production?"                  # quick: the chairman answers
-conclave ask "Is Unity DOTS ready for production?" --full -t unity   # full: every member answers
+conclave ask "Is Unity DOTS ready for production?" --full -t unity   # full: the council answers, reviews, sums up
 ```
 
 Every run is saved as plain files under its topic in your research store:
@@ -106,8 +106,13 @@ conclave-research/topics/unity/runs/2026-10-07-143205-is-unity-dots-ready-for-pr
   answers/anthropic--claude-sonnet-5.5.md
   answers/google--gemini-3.8-flash.md
   answers/openai--gpt-6.1-sol.md
-  meta.json          models, tokens, cost and timings
+  critiques/...      each member's review of the others, one file per member
+  rankings.json      every member's ranking of the others, and the average
+  final.md           the chairman's one-page answer (full runs)
+  meta.json          every call's model, tokens, cost and timing
 ```
+
+A full run prints the one-page answer, then what each stage cost. `--chairman <model id>` picks a different chairman for one run.
 
 `conclave init --store /path/to/folder` puts the research store somewhere else. Running `init` again never overwrites anything.
 
@@ -153,9 +158,10 @@ Every run records its real cost in `meta.json` and prints it. First measured run
 | Run | Models | Cost | Slowest answer |
 | --- | --- | --- | --- |
 | Quick | Claude Sonnet 5.5 as chairman | $0.012 | 10 s |
-| Full, research stage only | Claude Sonnet 5.5, GPT-6.1 Sol, Gemini 3.8 Flash | $0.020 | 18 s |
+| Full, research stage only (milestone 2) | Claude Sonnet 5.5, GPT-6.1 Sol, Gemini 3.8 Flash | $0.020 | 18 s |
+| Full: research, critique and synthesis (milestone 3) | Same three members, Claude Sonnet 5.5 as chairman | $0.066 | about 42 s in total |
 
-These cover the Research stage alone. Full runs will cost more once critique, synthesis, claim checking and web search are added, and these figures will be updated as each milestone lands.
+The first full run cost $0.066, about 9% of its $0.75 cap; the pre-run ceiling for the `balanced` profile is about $0.12. The chairman's page was the largest single cost ($0.021), because it reads every answer and review. These figures will be updated as claim checking and web search are added.
 
 ## Privacy
 

@@ -109,21 +109,49 @@ def write_question(run: Run, question: str, details: dict[str, str]) -> Path:
     return target
 
 
-def write_answer(run: Run, model_id: str, role: str, text: str) -> Path:
-    target = run.answers / model_filename(model_id)
+def write_model_text(
+    run: Run, folder: str, model_id: str, details: dict[str, str], text: str
+) -> Path:
+    """Save one model's text under a stage folder, with a small header saying who wrote it."""
+    directory = run.path / folder
+    directory.mkdir(exist_ok=True)
+    target = directory / model_filename(model_id)
     counter = 2
     while target.exists():  # the same model seated twice in one run
-        target = run.answers / model_filename(f"{model_id}-{counter}")
+        target = directory / model_filename(f"{model_id}-{counter}")
         counter += 1
-    header = f"---\nmodel: {model_id}\nrole: {role}\n---\n\n"
+    lines = ["---", f"model: {model_id}"] + [f"{key}: {value}" for key, value in details.items()]
+    header = "\n".join(lines) + "\n---\n\n"
     target.write_text(header + text.strip() + "\n", encoding="utf-8")
     return target
 
 
-def write_meta(run: Run, meta: dict[str, Any]) -> Path:
-    target = run.path / "meta.json"
-    target.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+def write_answer(run: Run, model_id: str, role: str, text: str, letter: str | None = None) -> Path:
+    details = {"role": role}
+    if letter:
+        details["response"] = letter
+    return write_model_text(run, "answers", model_id, details, text)
+
+
+def write_review(run: Run, model_id: str, letter: str, reviewed: list[str], text: str) -> Path:
+    details = {"role": "reviewer", "own_response": letter, "reviewed": ", ".join(reviewed)}
+    return write_model_text(run, "critiques", model_id, details, text)
+
+
+def write_json(run: Run, name: str, data: Any) -> Path:
+    target = run.path / name
+    target.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return target
+
+
+def write_final(run: Run, text: str) -> Path:
+    target = run.path / "final.md"
+    target.write_text(text.strip() + "\n", encoding="utf-8")
+    return target
+
+
+def write_meta(run: Run, meta: dict[str, Any]) -> Path:
+    return write_json(run, "meta.json", meta)
 
 
 def month_spend(store: Path, now: datetime) -> float:
