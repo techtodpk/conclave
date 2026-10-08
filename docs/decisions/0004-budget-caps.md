@@ -12,7 +12,7 @@ Three caps, set in the config, in US dollars:
 
 | Cap | Default | When it is reached |
 | --- | --- | --- |
-| Full run | 0.75 | The run stops before the next stage and saves what it has |
+| Full run | 1.00 (0.75 before milestone 5) | The run stops before the next stage and saves what it has |
 | Quick run | 0.10 (0.05 before milestone 4) | Same |
 | Month | 15.00 | New full runs are refused until the cap is raised; quick runs still work |
 
@@ -26,3 +26,5 @@ In milestone 4 the quick-run default rose from 0.05 to 0.10. Every call now rese
 - After each stage, it adds up actual spend from the usage figures the API returns.
 - Prepaid OpenRouter credit remains the hard ceiling whatever the config says.
 - The defaults come from a rough estimate and are to be reset from measured costs after milestone 2.
+
+In milestone 5 the full-run default rose from 0.75 to 1.00, because web search and claim checking raised the worst case of a `full` profile run to about $0.75 ([0011](0011-web-search-and-claim-checking.md)).

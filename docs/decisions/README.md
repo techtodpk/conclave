@@ -14,3 +14,4 @@ One short page per design choice: the context, what was decided, and what follow
 | [0008](0008-research-runs-checks-and-what-is-saved.md) | Research runs: checks before sending, and what is saved | 2026-10-07 |
 | [0009](0009-critique-and-synthesis.md) | How members review each other and how the chairman sums up | 2026-10-08 |
 | [0010](0010-topic-memory.md) | How a topic's memory is stored, recalled and updated | 2026-10-08 |
+| [0011](0011-web-search-and-claim-checking.md) | Web search through one engine, and claim checks decided in code | 2026-10-08 |

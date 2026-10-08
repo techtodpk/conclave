@@ -27,7 +27,15 @@ from conclave.gitstore import commit
 from conclave.http import new_client
 from conclave.keys import MissingKeyError, load_api_key
 from conclave.memory import Changes, MemoryFileError, add_note, load_memory, read_notes
-from conclave.runner import Outcome, Refused, cap_text, check_ids, dollars, run_question
+from conclave.runner import (
+    Outcome,
+    Refused,
+    cap_text,
+    check_ids,
+    dollars,
+    evidence_of,
+    run_question,
+)
 from conclave.store import DEFAULT_TOPIC, init_store, month_spend, slugify
 
 app = typer.Typer(
@@ -354,6 +362,13 @@ def ask(
         bool,
         typer.Option("--review", help="Show the memory changes and ask before saving them."),
     ] = False,
+    no_search: Annotated[
+        bool,
+        typer.Option(
+            "--no-search",
+            help="Answer from the models' training data alone: no web search, no claim checks.",
+        ),
+    ] = False,
     config: ConfigOption = None,
 ) -> None:
     """Ask the council a question and save the run to your research store."""
@@ -431,6 +446,8 @@ def ask(
                     started,
                     fresh=fresh,
                     approve=_confirm_changes if review else None,
+                    checker=Seat(chosen.checker, "checker"),
+                    web=settings.web_search and not no_search,
                 )
             )
         except Refused as refused:
@@ -456,6 +473,7 @@ def _confirm_changes(changes: Changes) -> bool:
 STAGE_TITLES = {
     "research": "Research",
     "critique": "Critique",
+    "verify": "Verify",
     "synthesis": "Synthesis",
     "memory": "Memory update",
 }
@@ -496,7 +514,7 @@ def _report(
         typer.echo(f"Memory: recalled {', '.join(parts)}.")
 
     width = max(len(c.result.seat.member.model) for c in outcome.calls)
-    for stage in ("research", "critique", "synthesis", "memory"):
+    for stage in ("research", "critique", "verify", "synthesis", "memory"):
         calls = [c for c in outcome.calls if c.stage == stage]
         if not calls:
             continue
@@ -513,10 +531,34 @@ def _report(
             if call.cost_source == "estimated":
                 price += " (estimated)"
             state = "CUT OFF" if done.cut_off else "ok"
+            web = ""
+            if stage == "research" and outcome.searches:
+                if done.search_failed:
+                    web = "  search failed, answered without it"
+                elif done.searches is None:
+                    web = f"  {len(done.sources)} cited"
+                else:
+                    count = "search" if done.searches == 1 else "searches"
+                    web = f"  {done.searches} {count}, {len(done.sources)} cited"
             typer.echo(
                 f"  {name}  {state}  {done.prompt_tokens:>6} in  {done.completion_tokens:>6} out  "
-                f"{price}  {done.seconds:.1f}s"
+                f"{price}  {done.seconds:.1f}s{web}"
             )
+
+    evidence = evidence_of(outcome)
+    if evidence is not None:
+        typer.echo("")
+        searched = "" if evidence["searches"] is None else f"{evidence['searches']} web searches, "
+        line = (
+            f"Evidence: {searched}{evidence['distinct_sources']} pages cited, "
+            f"{evidence['pages_fetched']} fetched for checking."
+        )
+        if evidence["claims_checked"]:
+            line += (
+                f" Key claims: {evidence['verified']} of {evidence['claims_checked']} verified, "
+                f"{evidence['contradicted']} contradicted (see verification.md)."
+            )
+        typer.echo(line)
 
     for note in outcome.notes:
         if not note.startswith("Prices unavailable"):

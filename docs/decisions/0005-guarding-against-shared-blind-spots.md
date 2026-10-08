@@ -1,6 +1,6 @@
 # 0005: Claim labels, a source overlap check, and an optional devil's advocate
 
-Date: 2026-10-07. Status: accepted.
+Date: 2026-10-07. Status: accepted. Labels and the overlap check were built in milestone 5 ([0011](0011-web-search-and-claim-checking.md)); the devil's advocate pass is deferred.
 
 ## Context
 

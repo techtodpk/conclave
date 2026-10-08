@@ -173,3 +173,101 @@ def test_all_thinking_and_no_answer_says_what_to_change(openrouter):
 
     with pytest.raises(ModelError, match="whole length limit thinking"):
         _complete()
+
+
+def test_search_adds_the_web_search_tool_and_reads_citations(openrouter):
+    cites = [
+        ("https://a.example/1", "One", "first"),
+        ("https://a.example/1", "One", "again"),
+        ("https://b.example/2", "Two", ""),
+        ("ftp://c.example/3", "Not web", ""),
+    ]
+    openrouter.reply(SONNET.model, answer("Found it.", cites=cites, searches=2))
+
+    async def go():
+        async with new_client() as http:
+            return await OpenRouterClient(http, KEY).complete(SONNET, MESSAGES, 500, searches=3)
+
+    done = asyncio.run(go())
+
+    (tool,) = openrouter.chat_requests[0]["tools"]
+    assert tool == {
+        "type": "openrouter:web_search",
+        "parameters": {"engine": "exa", "max_results": 5, "max_uses": 3, "max_total_results": 10},
+    }
+    assert done.searches == 2
+    assert [(s.url, s.title, s.excerpt) for s in done.sources] == [
+        ("https://a.example/1", "One", "first\n[...]\nagain"),
+        ("https://b.example/2", "Two", ""),
+    ]
+
+
+def test_no_search_means_no_tool(openrouter):
+    done = _complete()
+
+    assert "tools" not in openrouter.chat_requests[0]
+    assert (done.searches, done.sources) == (None, ())  # not reported, so not known
+
+
+def _in_reply_error(code, message):
+    return httpx.Response(200, json={"error": {"code": code, "message": message}})
+
+
+def test_provider_failure_inside_a_200_reply_is_retried(openrouter):
+    openrouter.reply(SONNET.model, _in_reply_error("502", "provider down"), answer("Back."))
+
+    assert _complete().text == "Back."
+    assert len(openrouter.chat_requests) == 2
+
+
+def test_failing_search_falls_back_to_answering_without_it(openrouter):
+    broken = _in_reply_error(
+        504, 'Server tool "openrouter:web_search" failed: upstream returned 504'
+    )
+
+    def reply(body):
+        return broken if "tools" in body else answer("From memory.")
+
+    openrouter.replies[SONNET.model] = reply
+
+    async def go():
+        async with new_client() as http:
+            return await OpenRouterClient(http, KEY).complete(SONNET, MESSAGES, 500, searches=3)
+
+    done = asyncio.run(go())
+
+    assert done.text == "From memory."
+    assert "upstream returned 504" in done.search_failed
+    with_tool = [b for b in openrouter.chat_requests if "tools" in b]
+    assert len(with_tool) == 3  # tried, retried twice, then answered without search
+    assert "tools" not in openrouter.chat_requests[-1]
+
+
+def test_other_errors_do_not_trigger_the_fallback(openrouter):
+    openrouter.reply(SONNET.model, failure(401))
+
+    async def go():
+        async with new_client() as http:
+            return await OpenRouterClient(http, KEY).complete(SONNET, MESSAGES, 500, searches=3)
+
+    with pytest.raises(ModelError, match="rejected the API key"):
+        asyncio.run(go())
+    assert len(openrouter.chat_requests) == 1
+
+
+def test_usage_is_kept_as_reported(openrouter):
+    openrouter.reply(SONNET.model, answer(searches=2))
+
+    done = _complete()
+
+    assert done.usage["server_tool_use_details"] == {"web_search_requests": 2}
+    assert done.searches == 2
+
+
+def test_search_count_is_also_read_from_the_older_field(openrouter):
+    reply = answer()
+    data = reply.json()
+    data["usage"]["server_tool_use"] = {"web_search_requests": 4}
+    openrouter.reply(SONNET.model, httpx.Response(200, json=data))
+
+    assert _complete().searches == 4

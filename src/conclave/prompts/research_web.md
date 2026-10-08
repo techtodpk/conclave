@@ -1,0 +1,2 @@
+- You can search the web. Search for facts that may have changed since your training data, figures, versions and dates, and anything you are unsure of. Do not search for what you know well. Prefer primary sources: official documentation, standards, the original paper or announcement.
+- Cite a page as a Markdown link where you use it. Cite only pages your searches returned, and only for what the page actually says. Do not invent sources, links, quotations or statistics.

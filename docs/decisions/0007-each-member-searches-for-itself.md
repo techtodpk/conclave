@@ -1,6 +1,6 @@
 # 0007: Each member searches the web for itself
 
-Date: 2026-10-07. Status: accepted.
+Date: 2026-10-07. Status: accepted. How it was built, and the price, are in [0011](0011-web-search-and-claim-checking.md).
 
 ## Context
 

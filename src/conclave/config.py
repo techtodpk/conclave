@@ -22,6 +22,9 @@ DEFAULT_MAX_ANSWER_TOKENS = 1500
 # How hard reasoning models think before answering (OpenRouter's reasoning effort).
 REASONING_LEVELS = ("none", "minimal", "low", "medium", "high")
 DEFAULT_REASONING = "low"
+# Web searches each member may run per answer in a full run (decision 0011).
+DEFAULT_MAX_SEARCHES = 3
+MAX_SEARCHES_LIMIT = 10
 MIN_ANSWER_TOKENS = 100
 
 
@@ -80,6 +83,8 @@ class Config:
     profiles: dict[str, Profile]
     max_answer_tokens: int = DEFAULT_MAX_ANSWER_TOKENS
     reasoning: str = DEFAULT_REASONING
+    web_search: bool = True
+    max_searches: int = DEFAULT_MAX_SEARCHES
 
     def profile(self, name: str | None = None) -> Profile:
         """Return the named profile, or the default one when no name is given."""
@@ -168,6 +173,22 @@ def parse_config(text: str) -> Config:
     if reasoning not in REASONING_LEVELS:
         raise ConfigError(f"run.reasoning must be one of {', '.join(REASONING_LEVELS)}")
 
+    search = data.get("search", {})
+    if not isinstance(search, dict):
+        raise ConfigError("[search] must be a section")
+    web_search = search.get("enabled", True)
+    if not isinstance(web_search, bool):
+        raise ConfigError("search.enabled must be true or false")
+    max_searches = search.get("max_searches", DEFAULT_MAX_SEARCHES)
+    if (
+        not isinstance(max_searches, int)
+        or isinstance(max_searches, bool)
+        or not 1 <= max_searches <= MAX_SEARCHES_LIMIT
+    ):
+        raise ConfigError(
+            f"search.max_searches must be a whole number from 1 to {MAX_SEARCHES_LIMIT}"
+        )
+
     return Config(
         store_path=Path(_text(store, "path", "store")).expanduser(),
         default_profile=default_profile,
@@ -181,6 +202,8 @@ def parse_config(text: str) -> Config:
         profiles=profiles,
         max_answer_tokens=max_answer_tokens,
         reasoning=reasoning,
+        web_search=web_search,
+        max_searches=max_searches,
     )
 
 

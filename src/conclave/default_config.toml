@@ -21,11 +21,19 @@ max_answer_tokens = 1500
 # call 2,048 tokens of room for it on top of the answer, so answers are not cut short.
 reasoning = "low"
 
+[search]
+# In a full run each member searches the web for itself and cites what it finds.
+# Searches go through OpenRouter on the Exa engine at about $0.007 each.
+# Turn off here, or for one run with `conclave ask --no-search`.
+enabled = true
+# The most searches one member may run for one answer.
+max_searches = 3
+
 [budget]
 # Spending limits in US dollars. A run that reaches its cap stops before the
 # next stage and saves what it has. When the monthly cap is reached, new full
 # runs are refused and quick runs still work.
-full_run_usd = 0.75
+full_run_usd = 1.00
 quick_run_usd = 0.10
 monthly_usd = 15.00
 

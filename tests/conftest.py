@@ -30,13 +30,27 @@ def answer(
     cost: float | None = 0.004,
     finish_reason: str = "stop",
     reasoning_tokens: int | None = None,
+    cites: list[tuple[str, str, str]] | None = None,
+    searches: int | None = None,
 ) -> httpx.Response:
+    """A chat reply. `cites` is (url, title, excerpt) for each search citation."""
     usage: dict = {"prompt_tokens": 300, "completion_tokens": 200, "total_tokens": 500}
     if cost is not None:
         usage["cost"] = cost
     if reasoning_tokens is not None:
         usage["completion_tokens_details"] = {"reasoning_tokens": reasoning_tokens}
-    choice = {"message": {"role": "assistant", "content": text}, "finish_reason": finish_reason}
+    if searches is not None:
+        usage["server_tool_use_details"] = {"web_search_requests": searches}
+    message: dict = {"role": "assistant", "content": text}
+    if cites:
+        message["annotations"] = [
+            {
+                "type": "url_citation",
+                "url_citation": {"url": url, "title": title, "content": excerpt},
+            }
+            for url, title, excerpt in cites
+        ]
+    choice = {"message": message, "finish_reason": finish_reason}
     body = {"choices": [choice], "usage": usage}
     return httpx.Response(200, json=body)
 
@@ -50,13 +64,99 @@ def stage_of(body: dict) -> str:
         return "synthesis"
     if "research memory for one topic" in system:
         return "memory"
+    if "You pick the key claims" in system:
+        return "extract"
+    if "You check claims against" in system:
+        return "check"
     return "research"
+
+
+# Pages the simulated web serves. Members cite them when they are allowed to search.
+PAGE_A = "https://docs.example.org/sky"
+PAGE_B = "https://blog.example.net/sky-colour"
+PAGE_A_TEXT = (
+    "The colour of the sky. "
+    + "Background on light and the atmosphere. " * 20
+    + "The sky looks blue because molecules in the air scatter short blue wavelengths of "
+    "sunlight more than long red ones, which is called Rayleigh scattering. "
+    + "Further reading on optics. "
+    * 20
+)
+PAGE_A_HTML = (
+    f"<html><head><title>Why the sky is blue</title><script>var x = 1;</script></head>"
+    f"<body><nav>Home | Docs</nav><p>{PAGE_A_TEXT}</p></body></html>"
+)
+EXCERPT_B = "Sunsets look red because light crosses more air when the sun is low."
+
+
+def web_reply(body: dict) -> httpx.Response:
+    """A member's answer when it may search: cites page A, and Sonnet also page B."""
+    model = body["model"]
+    cites = [(PAGE_A, "Why the sky is blue", "molecules in the air scatter short blue wavelengths")]
+    if model.startswith("anthropic/"):
+        cites.append((PAGE_B, "Sky colour", EXCERPT_B))
+    text = (
+        f"## Answer\n\nAnswer from {model}.\n\n## Key claims\n\n"
+        f"1. Rayleigh scattering makes the sky blue. [high] Sources: [docs]({PAGE_A})"
+    )
+    return answer(text, cites=cites, searches=len(cites))
+
+
+def extract_reply(body: dict) -> httpx.Response:
+    """The checker's claims: one backed by page A, one by page B, one with no source."""
+    user = body["messages"][1]["content"]
+    ids = dict((url, sid) for sid, url in re.findall(r"^- (S\d+): (\S+)", user, re.M))
+    letters = re.findall(r"^### Response ([A-Z])$", user, re.M)
+    claims = [
+        {
+            "text": "The sky is blue because air scatters blue sunlight more (Rayleigh).",
+            "responses": letters,
+            "sources": [ids[PAGE_A]] if PAGE_A in ids else [],
+            "disagreement": False,
+        }
+    ]
+    if PAGE_B in ids:
+        claims.append(
+            {
+                "text": "Sunsets are red because of a longer path through the air.",
+                "responses": letters[:1],
+                "sources": [ids[PAGE_B]],
+                "disagreement": False,
+            }
+        )
+    claims.append(
+        {"text": "An unsourced claim.", "responses": letters, "sources": [], "disagreement": False}
+    )
+    return answer("```json\n" + json.dumps({"claims": claims}) + "\n```", cost=0.002)
+
+
+def check_reply(body: dict) -> httpx.Response:
+    """Claim 1 supported by page A with a real quote; anything else not found."""
+    user = body["messages"][1]["content"]
+    a_id = re.search(r"^### (S\d+): " + re.escape(PAGE_A), user, re.M)
+    verdicts = [
+        {
+            "claim": 1,
+            "verdict": "supported",
+            "source": a_id.group(1) if a_id else "S1",
+            "quote": "scatter short blue wavelengths of sunlight more than long red ones",
+            "note": "",
+        },
+        {"claim": 2, "verdict": "not found", "source": "", "quote": "", "note": "Excerpt only."},
+    ]
+    return answer("```json\n" + json.dumps({"verdicts": verdicts}) + "\n```", cost=0.002)
 
 
 def default_reply(body: dict) -> httpx.Response:
     """A plausible reply for whichever stage the request belongs to."""
     model = body["model"]
     stage = stage_of(body)
+    if stage == "research" and body.get("tools"):
+        return web_reply(body)
+    if stage == "extract":
+        return extract_reply(body)
+    if stage == "check":
+        return check_reply(body)
     if stage == "critique":
         letters = re.findall(r"^### Response ([A-Z])$", body["messages"][1]["content"], re.M)
         sections = "\n\n".join(
@@ -96,6 +196,11 @@ class FakeOpenRouter:
         self.key_limit: float | None = None
         self.key_remaining: float | None = None
         self.key_status = 200
+        # url -> (status, content type, body); anything else on the web is a 404.
+        self.pages: dict[str, tuple[int, str, str]] = {
+            PAGE_A: (200, "text/html; charset=utf-8", PAGE_A_HTML),
+        }
+        self.fetched: list[str] = []
 
     def reply(self, model: str, *responses: httpx.Response, stage: str | None = None) -> None:
         """Queue responses for a model, optionally for one stage only.
@@ -105,6 +210,11 @@ class FakeOpenRouter:
         self.replies[f"{stage}:{model}" if stage else model] = list(responses)
 
     def handle(self, request: httpx.Request) -> httpx.Response:
+        if request.url.host != "openrouter.ai":
+            url = str(request.url)
+            self.fetched.append(url)
+            status, kind, page = self.pages.get(url, (404, "text/html", "Not found"))
+            return httpx.Response(status, headers={"content-type": kind}, text=page)
         if request.url.path.endswith("/models"):
             self.model_list_requests += 1
             if self.models_status != 200:

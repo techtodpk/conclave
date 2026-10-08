@@ -18,13 +18,13 @@ Conclave is a local tool that sends one question to several LLMs with web search
 ## The six stages of a full run
 
 1. **Recall.** Load the topic's summary, open disputes and the user's notes.
-2. **Research.** Each member answers alone, with web search and source links.
+2. **Research.** Each member answers alone. It may search the web, up to 3 times through OpenRouter's search tool on the Exa engine, and cites the pages it used.
 3. **Critique.** Each member reviews the others' answers with names hidden, and ranks them. The rankings are saved.
-4. **Verify.** A checker model tests the key claims against the cited pages. It checks only claims the answer depends on that are disputed or rest on a single source.
+4. **Verify.** The checker picks up to 8 key claims, preferring disputed claims and claims resting on one source. Conclave fetches the pages cited for them and gives the checker the passages that bear on each. The checker's verdict counts only if the words it quotes are in the page, and each claim's label is worked out in code ([0011](decisions/0011-web-search-and-claim-checking.md)).
 5. **Synthesize.** The chairman writes one page: the answer, what the members agreed on, what they disputed, and the sources. Every key claim carries a label.
 6. **Save.** Store the run, then update the topic's summary, disputes and sources.
 
-A full run with N members makes 2N + 2 model calls once claim checking exists; until milestone 5 it makes 2N + 1. Quick mode skips stages 2 to 4 and asks the chairman alone, with the recalled store.
+A full run with N members makes 2N + 3 model calls: N answers, N reviews, two checking calls, the chairman's page and the memory update. Quick mode skips stages 2 to 4 and asks the chairman alone, with the recalled store and no web search.
 
 ## Components
 
@@ -48,7 +48,7 @@ The MCP server needs four tools: `search_research`, `get_topic`, `ask_council` a
       memory.json            the record of claims and disputes
       summary.md             the active claims, written from memory.json
       disputes.md            disagreements, open or resolved, written from memory.json
-      sources.md             every link used, date fetched, check verdict (milestone 5)
+      sources.md             every page cited, by run: who cited it, whether it was fetched, what it checked
       notes.md               your own notes; the council reads these first
       runs/
         <date>-<question-slug>/
@@ -57,7 +57,8 @@ The MCP server needs four tools: `search_research`, `get_topic`, `ask_council` a
           answers/<model>.md
           critiques/<model>.md
           rankings.json      each model's ranking of the others
-          verification.md    (milestone 5)
+          sources.json       every page the members cited, and whether it could be fetched
+          verification.md    each key claim checked: verdict, quote, label (and verification.json)
           final.md           the one-page answer, ending with what changed in memory
           memory_patch.json  memory changes proposed, applied and refused
           meta.json          profile, models, tokens, cost, timings

@@ -282,13 +282,18 @@ class Changes:
     opened: list[Dispute] = field(default_factory=list)
     resolved: list[Dispute] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
+    similar: dict[str, str] = field(default_factory=dict)  # new claim id -> claim it may repeat
 
     @property
     def empty(self) -> bool:
         return not (self.added or self.changed or self.retired or self.opened or self.resolved)
 
     def lines(self) -> list[str]:
-        out = [f"- Added {c.id}: {c.text} [{c.label}]" for c in self.added]
+        out = [
+            f"- Added {c.id}: {c.text} [{c.label}]"
+            + (f" (may repeat {self.similar[c.id]})" if c.id in self.similar else "")
+            for c in self.added
+        ]
         out += [f"- Changed {c.id}: {c.text} [{c.label}] (was: {old})" for c, old in self.changed]
         out += [f"- Retired {c.id}: {c.text} ({c.retired_reason})" for c in self.retired]
         out += [f"- Opened dispute {d.id}: {d.text}" for d in self.opened]
@@ -300,30 +305,55 @@ def _clean(value: Any) -> str:
     return " ".join(str(value).split()) if isinstance(value, str) else ""
 
 
+# Word overlap between two claims: the share of the shorter claim's content words that the
+# other also has. It is a rough guide, so only near-identical claims are refused; a likely
+# repeat is added but flagged, for the user to see.
+SAME_CLAIM = 0.85
+SIMILAR_CLAIM = 0.6
+# A claim stored as verified must not say much more than the claim that was checked: this
+# share of its own content words must appear in a verified claim or the quote behind it.
+VERIFIED_COVERAGE = 0.75
+
+
+def overlap(a: str, b: str) -> float:
+    """Share of the shorter claim's content words that the other claim also has."""
+    from conclave.sources import words
+
+    left, right = words(a), words(b)
+    if not left or not right:
+        return 0.0
+    return len(left & right) / min(len(left), len(right))
+
+
+def covered(claim: str, evidence: str) -> float:
+    """Share of a claim's own content words that also appear in the evidence."""
+    from conclave.sources import words
+
+    own = words(claim)
+    return len(own & words(evidence)) / len(own) if own else 0.0
+
+
 def _same(a: str, b: str) -> bool:
     return re.sub(r"\W+", " ", a).strip().lower() == re.sub(r"\W+", " ", b).strip().lower()
 
 
 def apply_patch(
-    memory: TopicMemory, patch: dict[str, list[dict[str, Any]]], run: str, today: date
+    memory: TopicMemory,
+    patch: dict[str, list[dict[str, Any]]],
+    run: str,
+    today: date,
+    verified: list[str] | None = None,
 ) -> Changes:
-    """Apply a patch, enforcing the memory rules in code. The model's reply is never trusted."""
+    """Apply a patch, enforcing the memory rules in code. The model's reply is never trusted.
+
+    Changes and retirements are applied before additions, so a new claim is compared with
+    claims as just changed. `verified` lists the claims this run's checker verified, each with
+    its quote; a claim labelled "verified" that says much more than any of them is stored
+    as "agreed but unchecked".
+    None means no checking took place, and the label is taken as given.
+    """
     changes = Changes()
     stamp = today.isoformat()
-
-    for item in patch.get("add", []):
-        text, label = _clean(item.get("text")), _clean(item.get("label")).lower()
-        if not text:
-            continue
-        if label not in ENTRY_LABELS:
-            changes.skipped.append(f"Not added, labelled '{label or 'none'}': {text}")
-            continue
-        if any(_same(text, c.text) for c in memory.active_claims):
-            changes.skipped.append(f"Not added, already in memory: {text}")
-            continue
-        claim = Claim(memory.next_claim_id(), text, label, stamp, run)
-        memory.claims.append(claim)
-        changes.added.append(claim)
 
     for item in patch.get("change", []):
         claim = memory.claim(_clean(item.get("id")))
@@ -335,6 +365,12 @@ def apply_patch(
         if label not in ENTRY_LABELS:
             changes.skipped.append(f"Change to {claim.id} ignored, labelled '{label or 'none'}'")
             continue
+        if (
+            label == "verified"
+            and verified is not None
+            and not any(covered(text, v) >= VERIFIED_COVERAGE for v in verified)
+        ):
+            label = "agreed but unchecked"
         previous = claim.text
         claim.history.append({"date": stamp, "run": run, "text": previous, "reason": reason})
         claim.text, claim.label, claim.updated, claim.updated_run = text, label, stamp, run
@@ -351,6 +387,32 @@ def apply_patch(
             continue
         claim.retired, claim.retired_run, claim.retired_reason = stamp, run, reason
         changes.retired.append(claim)
+
+    for item in patch.get("add", []):
+        text, label = _clean(item.get("text")), _clean(item.get("label")).lower()
+        if not text:
+            continue
+        if label not in ENTRY_LABELS:
+            changes.skipped.append(f"Not added, labelled '{label or 'none'}': {text}")
+            continue
+        if (
+            label == "verified"
+            and verified is not None
+            and not any(covered(text, v) >= VERIFIED_COVERAGE for v in verified)
+        ):
+            label = "agreed but unchecked"
+            changes.skipped.append(
+                f"Label changed to 'agreed but unchecked', no matching verified claim: {text}"
+            )
+        scores = sorted(((overlap(text, c.text), c.id) for c in memory.active_claims), reverse=True)
+        if scores and scores[0][0] >= SAME_CLAIM:
+            changes.skipped.append(f"Not added, repeats {scores[0][1]}: {text}")
+            continue
+        claim = Claim(memory.next_claim_id(), text, label, stamp, run)
+        memory.claims.append(claim)
+        changes.added.append(claim)
+        if scores and scores[0][0] >= SIMILAR_CLAIM:
+            changes.similar[claim.id] = scores[0][1]
 
     for item in patch.get("open_disputes", []):
         text = _clean(item.get("text"))

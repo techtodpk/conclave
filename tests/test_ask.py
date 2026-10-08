@@ -72,19 +72,20 @@ def test_full_run_answers_reviews_and_sums_up(workspace, openrouter):
     meta = _meta(run)
     assert meta["mode"] == "full"
     assert meta["topic"] == "unity"
-    assert meta["stages"] == ["research", "critique", "synthesis", "memory"]
+    assert meta["stages"] == ["research", "critique", "verify", "synthesis", "memory"]
     assert meta["stopped"] is None
     assert [c["stage"] for c in meta["calls"]].count("critique") == 3
+    assert [c["stage"] for c in meta["calls"]].count("verify") == 2
     assert meta["totals"]["answers"] == 3
     assert meta["totals"]["failures"] == 0
-    assert meta["totals"]["cost_usd"] == round(3 * 0.004 + 3 * 0.002 + 0.006 + 0.003, 6)
-    assert 0 < meta["budget"]["worst_case_estimate_usd"] < 0.75
+    assert meta["totals"]["cost_usd"] == round(3 * 0.004 + 3 * 0.002 + 2 * 0.002 + 0.006 + 0.003, 6)
+    assert 0 < meta["budget"]["worst_case_estimate_usd"] < 1.00
 
     assert result.output.startswith("# Is Unity DOTS ready for production?")
     assert "Asked 3 members (profile 'balanced', topic 'unity')" in result.output
     for title in ("Research", "Critique", "Synthesis", "Memory update"):
         assert f"\n{title}\n" in result.output
-    assert "$0.0270 of the $0.75 cap for full runs" in result.output
+    assert "$0.0310 of the $1.00 cap for full runs" in result.output
     assert "final.md" in result.output
 
 
@@ -111,7 +112,7 @@ def test_chairman_sees_letters_not_model_names(workspace, openrouter):
 
     (body,) = [b for b in openrouter.chat_requests if "chairman" in b["messages"][0]["content"]]
     text = body["messages"][1]["content"]
-    assert "### Response A" in text and "### Review 3" in text
+    assert "### Response A" in text and "### Review by the author of Response C" in text
     assert "Average position, lower is better: Response A 1.0" in text
     for model in BALANCED:
         assert f"{model}\n" not in text.replace(f"Answer from {model}.", "")
@@ -159,7 +160,7 @@ def test_chairman_failure_keeps_answers_and_reviews(workspace, openrouter):
     assert not (run / "final.md").exists()
     assert len(list((run / "critiques").iterdir())) == 3
     meta = _meta(run)
-    assert meta["stages"] == ["research", "critique"]
+    assert meta["stages"] == ["research", "critique", "verify"]
     assert openrouter.asked_in("memory") == []
     assert not (workspace.store / "topics" / "general" / "memory.json").exists()
     assert "could not write the one-page answer" in result.output
@@ -186,7 +187,7 @@ def test_stops_before_a_stage_that_would_break_the_cap(workspace, openrouter):
     workspace.set_key()
     # Big reported costs push the run past the cap after the research stage.
     for model in BALANCED:
-        openrouter.reply(model, answer(cost=0.30), stage="research")
+        openrouter.reply(model, answer(cost=0.33), stage="research")
 
     result = _ask(workspace, "A question", "--full")
 
@@ -320,7 +321,7 @@ def test_unknown_model_stops_before_anything_is_sent(workspace, openrouter):
 def test_run_above_the_cap_is_refused_before_anything_is_sent(workspace, openrouter):
     _init(workspace)
     workspace.set_key()
-    _edit_config(workspace, "full_run_usd = 0.75", "full_run_usd = 0.001")
+    _edit_config(workspace, "full_run_usd = 1.00", "full_run_usd = 0.001")
 
     result = _ask(workspace, "A question", "--full")
 
@@ -335,7 +336,7 @@ def test_monthly_cap_pauses_full_runs_but_not_quick_ones(workspace, openrouter):
     _init(workspace)
     workspace.set_key()
     _edit_config(workspace, "monthly_usd = 15.00", "monthly_usd = 0.01")
-    assert _ask(workspace, "First question", "--full").exit_code == 0  # costs 0.027
+    assert _ask(workspace, "First question", "--full").exit_code == 0  # costs 0.031
 
     blocked = _ask(workspace, "Second question", "--full")
     allowed = _ask(workspace, "Third question", "--quick")
@@ -380,8 +381,8 @@ def test_run_continues_when_prices_are_unavailable(workspace, openrouter):
     (run,) = workspace.runs()
     meta = _meta(run)
     assert meta["budget"]["worst_case_estimate_usd"] is None
-    assert meta["stages"] == ["research", "critique", "synthesis", "memory"]
-    assert meta["totals"]["cost_usd"] == 0.027
+    assert meta["stages"] == ["research", "critique", "verify", "synthesis", "memory"]
+    assert meta["totals"]["cost_usd"] == 0.031
 
 
 def test_cost_is_estimated_from_prices_when_not_reported(workspace, openrouter):

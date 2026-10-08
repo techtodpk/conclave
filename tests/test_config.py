@@ -37,7 +37,7 @@ def test_packaged_defaults_are_valid():
     assert set(config.profiles) == {"lean", "balanced", "full"}
     assert config.default_profile == "balanced"
     assert config.default_mode == "quick"
-    assert config.budget.full_run_usd == 0.75
+    assert config.budget.full_run_usd == 1.00
     assert config.budget.quick_run_usd == 0.10
     assert config.budget.monthly_usd == 15.0
 
@@ -154,3 +154,16 @@ def test_reasoning_defaults_to_low_and_is_validated():
 
     with pytest.raises(ConfigError, match="run.reasoning must be one of"):
         parse_config(MINIMAL.replace("claims_checked = 5", 'claims_checked = 5\nreasoning = "max"'))
+
+
+def test_search_is_on_by_default_and_can_be_set():
+    assert (parse_config(MINIMAL).web_search, parse_config(MINIMAL).max_searches) == (True, 3)
+    config = parse_config(MINIMAL + "\n[search]\nenabled = false\nmax_searches = 5\n")
+    assert (config.web_search, config.max_searches) == (False, 5)
+    packaged = parse_config(default_config_text())
+    assert (packaged.web_search, packaged.max_searches) == (True, 3)
+
+    with pytest.raises(ConfigError, match="search.max_searches"):
+        parse_config(MINIMAL + "\n[search]\nmax_searches = 0\n")
+    with pytest.raises(ConfigError, match="search.enabled"):
+        parse_config(MINIMAL + '\n[search]\nenabled = "yes"\n')

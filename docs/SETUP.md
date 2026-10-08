@@ -151,17 +151,22 @@ Then a full run, filed under a topic:
 conclave ask "What is the difference between a process and a thread?" --full --topic operating-systems
 ```
 
-A full run has three stages:
+A full run has four stages:
 
-1. **Research.** Every member of the profile answers on its own, at the same time.
+1. **Research.** Every member of the profile answers on its own, at the same time. Each may search the web up to 3 times and cites the pages it used.
 2. **Critique.** Each member reviews the other answers, which are labelled A, B, C so the reviewer does not know who wrote them, and ranks them.
-3. **Synthesis.** The chairman reads the answers and reviews and writes a one-page answer. Each key claim is labelled "agreed but unchecked", "single model" or "disputed", and the disagreements are set out.
+3. **Verify.** The profile's checker picks up to 8 key claims. Conclave fetches the pages cited for them, from your machine, and the checker says whether each page supports, contradicts or does not settle the claim, quoting the words that decide it. A verdict counts only if the quote is really in the page.
+4. **Synthesis.** The chairman reads the answers, reviews and checks and writes a one-page answer. Each key claim is labelled "verified", "agreed but unchecked", "single source", "single model" or "disputed", and the disagreements are set out.
+
+Add `--no-search` to skip searching and checking and answer from the models' training data alone.
 
 The one-page answer is printed, followed by what each stage cost. Open the folder named after "Saved to". You should find:
 
 | File | What it holds |
 | --- | --- |
-| `final.md` | The one-page answer, ending with which model wrote which response and how the others ranked it |
+| `final.md` | The one-page answer and its sources, ending with which model wrote which response and how the others ranked it |
+| `verification.md` | Each key claim the checker tested: the pages, the verdict, the quoted words and the label. `verification.json` holds the same |
+| `sources.json` | Every page the members cited, who cited it, and whether Conclave could fetch it |
 | `question.md` | The question, the time, the topic, the mode and the profile |
 | `answers/<vendor>--<model>.md` | Each member's own answer, with its response letter |
 | `critiques/<vendor>--<model>.md` | Each member's review of the others |
@@ -172,7 +177,7 @@ A quick run saves only `question.md`, the chairman's answer and `meta.json`.
 
 To try a different chairman for one run, add `--chairman <model id>`.
 
-**What it costs.** With the default settings and prices as listed on 7 October 2026, a quick run costs at most about 2 cents and a full run with the `balanced` profile at most about 12 cents. Before anything is sent, Conclave works out the most the run could cost and refuses it if that is above the cap in your config. Most runs cost well under that ceiling, because models rarely use the full answer length.
+**What it costs.** With the default settings and prices as listed on 8 October 2026, a quick run costs at most about 4 cents and a full run with the `balanced` profile at most about 59 cents, if every member uses every search and every call writes as much as it may. Measured full runs without search cost about 7 to 10 cents. Before anything is sent, Conclave works out the most the run could cost and refuses it if that is above the cap in your config. Most runs cost well under that ceiling, because models rarely use the full answer length.
 
 Before each later stage, Conclave checks again: if that stage could take the run over its cap, it stops and keeps everything up to that point.
 
@@ -180,7 +185,7 @@ If one member fails, for example because its provider is busy, the others carry 
 
 ## 8. Build up a topic's memory
 
-Each topic keeps a memory of what the council concluded. Ask a second, related question on the same topic and the council starts from the first one:
+Each topic keeps a memory of what the council concluded, and `sources.md`, a list of every page it cited. Ask a second, related question on the same topic and the council starts from the first one:
 
 ```bash
 conclave ask "What is the difference between a process and a thread?" --full --topic operating-systems
@@ -212,7 +217,8 @@ Other useful commands:
 How the memory is kept honest:
 
 - Only full runs change it; quick runs read it.
-- A claim enters only if the members agreed on it. Points only one model made are not stored, and contested points become disputes.
+- A claim enters only if the checker verified it against a source or the members agreed on it. Points only one model made, or that every member took from one website, are not stored, and contested points become disputes.
+- A claim is stored as "verified" only if it matches a claim the checker verified in that run.
 - Nothing is deleted. A claim that turns out wrong is retired with a reason and stays visible in `summary.md`.
 - Do not edit `summary.md` or `disputes.md` by hand: they are rewritten from `memory.json` after every full run. Use a note instead.
 
@@ -268,7 +274,7 @@ conclave init --store /path/to/my-research
 
 Keep the research store **outside** the Conclave code folder. Your research is private; the code repository is public.
 
-**What leaves your machine.** The store and everything in it stay on your disk. When you ask a question, the question and the topic's recalled memory (its claims, open disputes and your notes) are sent to OpenRouter and on to the model vendors you chose. Nothing else is sent. Use `--fresh` to send the question alone.
+**What leaves your machine.** The store and everything in it stay on your disk. When you ask a question, the question and the topic's recalled memory (its claims, open disputes and your notes) are sent to OpenRouter and on to the model vendors you chose. In a full run, the search queries the members write go to OpenRouter's search provider, Exa, and the pages cited for claim checking are fetched directly from your machine, like opening them in a browser. Nothing else is sent. Use `--fresh` to leave out the memory, and `--no-search` to turn off searching and fetching.
 
 ## 11. Change the settings
 
@@ -276,7 +282,8 @@ Open the config file in any text editor. It is commented throughout. The parts y
 
 - **`[budget]`**: the spending caps per full run, per quick run and per month, in US dollars.
 - **`[run]`**: which profile and which mode are used when you do not say, `max_answer_tokens`, the longest answer a model may give (lower it to cut cost), and `reasoning`, how hard reasoning models think before answering (`none`, `minimal`, `low`, `medium` or `high`; default `low`). Thinking is billed as output, and every call gets 2,048 tokens of room for it on top of the answer.
-- **`[profiles.<name>]`**: who sits on the council.
+- **`[search]`**: `enabled` turns web search and claim checking on or off for full runs, and `max_searches` is the most searches one member may run for one answer (default 3, about $0.007 each).
+- **`[profiles.<name>]`**: who sits on the council, the chairman, and the checker who tests claims against sources.
 
 After editing, run `conclave config`. It either shows the new settings or tells you exactly which value is wrong.
 
@@ -309,6 +316,10 @@ All tests should pass. They use a simulated OpenRouter, so they need no key, cos
 | `full runs are paused` | This month's recorded spending reached the monthly cap | Raise `monthly_usd` in `[budget]`. Quick runs still work |
 | `Rate limited` on one member | That model's provider is busy | Run again shortly. The other members' answers were saved |
 | `CUT OFF` beside a model, or `Cut off at the length limit` | The model reached its length limit, so that text ends early. The other models are told | Raise `max_answer_tokens`, or set `reasoning` lower in `[run]` |
+| `No member cited a web page` | The members answered without searching, or cited nothing | Nothing to fix; the claims are labelled from the members' agreement. A question about recent facts is more likely to make them search |
+| A source shows `no (HTTP 403)`, `not a web page` or `needs JavaScript` in `sources.md` | The site blocked the download, the link is a PDF, or the page builds its text in the browser | The checker used the search excerpt instead, and `verification.md` says so. Open the link yourself to judge it |
+| A verdict says `its quote is not in the source, so the verdict was not accepted` | The checker paraphrased instead of quoting the page word for word | Nothing to fix; the claim is counted as not found, which is the safe side. If it happens often with one checker model, choose another in the profile |
+| `Claim checking was skipped` | Checking could have taken the run over its cap | Raise `full_run_usd` in `[budget]`, or lower `claims_checked` in `[run]` |
 | `Stopped before the critique stage` (or synthesis) | That stage could have taken the run over its cap | The earlier stages are saved. Raise `full_run_usd` in `[budget]`, or lower `max_answer_tokens` |
 | A review's ranking `left out rather than guessed` | The model did not write its ranking in the expected form | Nothing to fix; that one ranking is left out of the averages. If it happens often with one model, choose another |
 | `... memory.json could not be read` | The topic's memory file was damaged, for example by a hand edit | Restore it from the store's Git history, or move it aside to start that topic's memory again. The runs are not affected |

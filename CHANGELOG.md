@@ -2,6 +2,32 @@
 
 Each milestone on the [roadmap](README.md#roadmap) is tagged in Git when it is complete. Work in progress and pending tasks are tracked in [project status](docs/STATUS.md).
 
+## Milestone 5: web search and claim check (2026-10-08)
+
+Tag: `milestone-5`. Version 0.5.0.
+
+- Members search the web in full runs. Each decides what to search for, up to 3 searches per answer, through OpenRouter's web search tool on the Exa engine (about $0.007 per search), and cites the pages it used. Quick runs do not search. `--no-search` or `[search] enabled = false` answers from training data alone.
+- A new Verify stage between Critique and Synthesis. The profile's checker picks up to 8 key claims from the answers and reviews, preferring disputed claims and claims resting on one source. Conclave fetches the pages cited for them on your machine and gives the checker the passages that bear on each claim; when a page cannot be fetched, the search excerpt is used and the verdict says so. The checker says supported, contradicted or not found for each.
+- Code, not the model, decides what counts: a verdict stands only if the words it quotes are in the page, and each claim's label (verified, agreed but unchecked, single source, single model, disputed) is worked out from the verdict and from how many members and websites back it. The chairman is given these labels and told to use them.
+- A claim enters memory as "verified" only if it matches one the checker verified in that run.
+- New files: `verification.md` and `verification.json` (every checked claim, its verdict, quote and label), `sources.json` in each run, and `sources.md` in each topic (every page cited, by run, whether it was fetched and what it checked). The final page lists its sources and says what was checked.
+- The report shows each member's searches and citations, and an Evidence line.
+- `meta.json` records searches, distinct sources, pages fetched and the share of checked claims verified.
+- The pre-run cost ceiling includes searches, the search results models read, and checking. The default full-run cap rose from $0.75 to $1.00; an existing config keeps its own.
+- Reviews are named by the response their author wrote ("the review by B's author"), not by number.
+- The memory update is told to change a claim rather than add a near-copy, and not to open a dispute the page has settled. Code refuses a claim that repeats an existing one and flags a likely repeat as "may repeat C6".
+- A full run now makes 2N + 3 model calls for N members.
+- Decision record [0011](docs/decisions/0011-web-search-and-claim-checking.md). The devil's advocate pass (`--deep`) moved to follow-ups.
+- Fixed after the first live run:
+  - When the search service fails for a member, it now answers without searching instead of dropping out, and the run says so. A provider error reported inside an HTTP 200 reply, and HTTP 504, are retried like other busy-provider errors.
+  - The number of searches is shown only when OpenRouter reports it; it is no longer shown as 0. Each call's usage figures, as OpenRouter sent them, are saved in `meta.json`.
+  - A checker's quote must come from one stretch of a page, not join words across a gap; neighbouring parts of a page are joined without a gap.
+  - A claim stored as verified may not add detail the checked claim did not have.
+  - The checker is told not to pick two claims that one sentence would settle.
+  - The key-balance comparison was removed: OpenRouter updates the balance some time after a run.
+- Fixed after the second live run: the search count is read from where OpenRouter reports it (`server_tool_use_details`); links that differ only by a tracking parameter such as `?featured_on=` count as one page; the passages given to the checker keep each part of a page whole instead of cutting it mid-sentence.
+- Checked against the live OpenRouter API on Windows, on topic `os`. The first run resolved an open dispute from an earlier run against Python's own documentation: 5 of 8 key claims verified, $0.17. The second, after fixes, had all three members search (1, 5 and 2 searches) and cite 17 pages; 4 of 8 key claims verified, $0.28. Search fees are included in the cost OpenRouter reports.
+
 ## Milestone 4: store and recall (2026-10-08)
 
 Tag: `milestone-4`. Version 0.4.0.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import httpx
 
@@ -17,7 +17,15 @@ from conclave.config import Member
 # budget and other models about a fifth of max_tokens, both within this allowance.
 REASONING_ALLOWANCE = 2048
 
-RETRY_STATUSES = {408, 429, 500, 502, 503, 524, 529}
+# Web search runs through OpenRouter's web_search server tool on the Exa engine, so every
+# model searches the same way at the same price (decision 0011). The model decides when to
+# search, up to the configured number of searches per answer.
+SEARCH_ENGINE = "exa"
+RESULTS_PER_SEARCH = 5
+MAX_RESULTS_PER_ANSWER = 10
+SEARCH_PRICE_USD = 0.007  # per search on Exa's default mode, up to 10 results included
+
+RETRY_STATUSES = {408, 429, 500, 502, 503, 504, 524, 529}
 RETRY_DELAYS = (1.0, 3.0)  # seconds before the second and third attempts
 
 FRIENDLY = {
@@ -42,6 +50,15 @@ class ModelError(Exception):
 
 
 @dataclass(frozen=True)
+class Source:
+    """A web page a model cited, with the excerpt the search returned when there was one."""
+
+    url: str
+    title: str = ""
+    excerpt: str = ""
+
+
+@dataclass(frozen=True)
 class Completion:
     text: str
     prompt_tokens: int
@@ -50,6 +67,10 @@ class Completion:
     seconds: float
     cut_off: bool = False  # the model stopped at the length limit, so the text is incomplete
     reasoning_tokens: int = 0  # hidden thinking, included in completion_tokens
+    searches: int | None = 0  # web searches run for this answer; None when not reported
+    sources: tuple[Source, ...] = ()  # pages the model cited, in the order first cited
+    usage: dict | None = None  # OpenRouter's usage figures as sent, kept for the run record
+    search_failed: str | None = None  # why web search failed, when the answer came without it
 
 
 Sleep = Callable[[float], Awaitable[None]]
@@ -97,9 +118,16 @@ class OpenRouterClient:
         self._reasoning = reasoning
 
     async def complete(
-        self, member: Member, messages: list[dict[str, str]], max_tokens: int
+        self,
+        member: Member,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+        searches: int = 0,
     ) -> Completion:
-        """`max_tokens` is the longest visible answer; room for reasoning is added on top."""
+        """`max_tokens` is the longest visible answer; room for reasoning is added on top.
+
+        `searches` above 0 lets the model search the web up to that many times.
+        """
         if member.route != "api":
             raise ModelError(
                 f"{member.model} is set to route '{member.route}'. Only route 'api' works so far; "
@@ -113,23 +141,56 @@ class OpenRouterClient:
             "reasoning": {"effort": self._reasoning},
             "usage": {"include": True},
         }
+        if searches > 0:
+            body["tools"] = [
+                {
+                    "type": "openrouter:web_search",
+                    "parameters": {
+                        "engine": SEARCH_ENGINE,
+                        "max_results": RESULTS_PER_SEARCH,
+                        "max_uses": searches,
+                        "max_total_results": MAX_RESULTS_PER_ANSWER,
+                    },
+                }
+            ]
         started = time.monotonic()
+        try:
+            return await self._post(body, started)
+        except ModelError as error:
+            if "tools" not in body or "web_search" not in str(error):
+                raise
+            # The search service failed, not the model. Answer without searching rather
+            # than lose this member, and say so.
+            del body["tools"]
+            done = await self._post(body, started)
+            return replace(done, search_failed=str(error))
+
+    async def _post(self, body: dict, started: float) -> Completion:
+        """Send one request, retrying network errors and busy or failing providers."""
         attempts = len(RETRY_DELAYS) + 1
         for attempt in range(attempts):
+            last = attempt == attempts - 1
             try:
                 response = await self._http.post(
                     "/chat/completions", json=body, headers=self._headers
                 )
             except httpx.HTTPError as error:
-                if attempt < attempts - 1:
+                if not last:
                     await self._sleep(RETRY_DELAYS[attempt])
                     continue
                 raise ModelError(f"network error calling OpenRouter ({error!r})") from None
 
-            if response.status_code in RETRY_STATUSES and attempt < attempts - 1:
+            if response.status_code in RETRY_STATUSES and not last:
                 await self._sleep(RETRY_DELAYS[attempt])
                 continue
-            return _read(response, time.monotonic() - started)
+            try:
+                return _read(response, time.monotonic() - started)
+            except ModelError as error:
+                # A provider failure reported inside an HTTP 200 reply is retried the same way.
+                if error.status in RETRY_STATUSES and not last:
+                    await self._sleep(RETRY_DELAYS[attempt])
+                    continue
+                raise
 
         raise ModelError("the request was retried and still failed")  # pragma: no cover
 
@@ -160,11 +221,17 @@ def _read(response: httpx.Response, seconds: float) -> Completion:
     # OpenRouter can report a provider failure inside an HTTP 200 reply.
     if isinstance(data.get("error"), dict):
         message = data["error"].get("message") or "the provider returned an error"
-        raise ModelError(str(message), status=data["error"].get("code"))
+        code = data["error"].get("code")
+        try:
+            status = int(code)
+        except (TypeError, ValueError):
+            status = None
+        raise ModelError(str(message), status=status)
 
     try:
         choice = data["choices"][0]
-        text = choice["message"]["content"]
+        message = choice["message"]
+        text = message["content"]
     except (KeyError, IndexError, TypeError):
         raise ModelError("OpenRouter's reply had no answer in it") from None
     cut_off = choice.get("finish_reason") == "length"
@@ -179,6 +246,11 @@ def _read(response: httpx.Response, seconds: float) -> Completion:
     usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
     details = usage.get("completion_tokens_details")
     reasoning = details.get("reasoning_tokens") if isinstance(details, dict) else None
+    # OpenRouter reports searches under server_tool_use_details; older replies used
+    # server_tool_use.
+    tools = usage.get("server_tool_use_details") or usage.get("server_tool_use")
+    searches = tools.get("web_search_requests") if isinstance(tools, dict) else None
+    counted = isinstance(searches, int) and not isinstance(searches, bool) and searches >= 0
     cost = usage.get("cost")
     reported = isinstance(cost, int | float) and not isinstance(cost, bool)
     return Completion(
@@ -189,7 +261,35 @@ def _read(response: httpx.Response, seconds: float) -> Completion:
         seconds=seconds,
         cut_off=cut_off,
         reasoning_tokens=_whole(reasoning),
+        searches=searches if counted else None,
+        sources=_sources(message.get("annotations")),
+        usage=usage or None,
     )
+
+
+def _sources(annotations: object) -> tuple[Source, ...]:
+    """The pages cited in a reply, one per URL, in the order first cited."""
+    found: dict[str, Source] = {}
+    if not isinstance(annotations, list):
+        return ()
+    for item in annotations:
+        if not isinstance(item, dict) or item.get("type") != "url_citation":
+            continue
+        cite = item.get("url_citation")
+        if not isinstance(cite, dict):
+            continue
+        url = cite.get("url")
+        if not isinstance(url, str) or not url.startswith(("http://", "https://")):
+            continue
+        title = cite.get("title") if isinstance(cite.get("title"), str) else ""
+        excerpt = cite.get("content") if isinstance(cite.get("content"), str) else ""
+        known = found.get(url)
+        if known is None:
+            found[url] = Source(url, title.strip(), excerpt.strip())
+        elif excerpt and excerpt not in known.excerpt:
+            joined = f"{known.excerpt}\n[...]\n{excerpt.strip()}".strip()
+            found[url] = Source(url, known.title or title.strip(), joined)
+    return tuple(found.values())
 
 
 def _whole(value: object) -> int:

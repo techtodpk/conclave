@@ -2,13 +2,13 @@
 
 **The single source of truth for what Conclave does today, what is being built now, and what is still to come.** Every change that adds, removes or changes a capability updates this file in the same commit.
 
-Last updated: 8 October 2026 · Version 0.4.0 · Latest tag: `milestone-4`
+Last updated: 8 October 2026 · Version 0.5.0 · Latest tag: `milestone-5`
 
 | | |
 | --- | --- |
-| **Done** | Milestones 1 to 4: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer; a memory per topic that each new question starts from |
-| **In progress** | Nothing; milestone 5 starts next |
-| **Next** | Milestone 5: web search, and checking key claims against the cited pages |
+| **Done** | Milestones 1 to 5: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer; a memory per topic that each new question starts from; web search, with key claims checked against the cited pages |
+| **In progress** | Nothing; milestone 6 starts next |
+| **Next** | Milestone 6: an MCP server, so Claude Desktop and Cursor can use the research store |
 
 ## Scope
 
@@ -33,7 +33,7 @@ A change of scope is recorded as a decision record before it is built.
 | 2 | Council core | Done, 8 Oct 2026 | `milestone-2` |
 | 3 | Critique and chairman | Done, 8 Oct 2026 | `milestone-3` |
 | 4 | Store and recall | Done, 8 Oct 2026 | `milestone-4` |
-| 5 | Web search and claim check | Pending | |
+| 5 | Web search and claim check | Done, 8 Oct 2026 | `milestone-5` |
 | 6 | MCP server | Pending | |
 | 7 | CLI adapters and showcase | Pending | |
 | 8 | Public ranking chart | Pending | |
@@ -99,22 +99,27 @@ Done when a follow-up question on a topic uses what earlier runs concluded, and 
 - [x] Before each run, the key's remaining OpenRouter credit is checked against the run's worst-case cost; the balance is printed after the run
 - [x] Room for hidden reasoning on every call, `run.reasoning` setting, and cut-off texts detected, marked and kept out of memory
 - [x] Live run: two related full questions on topic `os`. The second recalled 6 claims and 3 disputes, then added 3 claims, refined 1 and resolved 2 disputes. $0.097 and $0.090
-- [ ] `sources.md`: moved to milestone 5, since there are no sources to record until web search exists
+- [x] `sources.md`: moved to milestone 5, since there are no sources to record until web search exists
 - [ ] `conclave rebuild <topic>`: moved to follow-ups (decision 0010)
 
-### 5. Web search and claim check: pending
+### 5. Web search and claim check: done
 
 Done when members cite live sources and the key claims on the final page are checked against them.
 
-- [ ] `sources.md` per topic: every link used, the date fetched and its check verdict
-- [ ] Members search the web for themselves (decision 0007)
-- [ ] Key claims extracted with the links behind them
-- [ ] Source overlap check: a claim that every member took from one page is marked "single source" (decision 0005)
-- [ ] Cited pages fetched, and a checker model gives each key claim a verdict
-- [ ] `verification.md` saved, and "verified" labels shown on the final page
-- [ ] Each run logs distinct sources and the share of claims verified
-- [ ] `--deep`: a devil's advocate pass argues against the consensus
-- [ ] Budget caps reset from measured costs of full runs
+- [x] Members search the web for themselves through OpenRouter's web search tool on the Exa engine, up to 3 searches per answer; `--no-search` and `[search]` in the config turn it off (decisions 0007 and 0011)
+- [x] Key claims picked by the checker, with the sources behind them; it can only name sources members cited
+- [x] Source overlap check in code: a claim whose members all lean on one website is labelled "single source" (decision 0005)
+- [x] Cited pages fetched on your machine, falling back to the search excerpt; the checker gives each key claim a verdict, which counts only if its quote is in the page
+- [x] Labels worked out in code and given to the chairman; "verified" enters memory only for a claim the checker verified
+- [x] `verification.md` and `verification.json` in each run; a Sources section on the final page
+- [x] `sources.md` per topic, and `sources.json` per run: every page cited, whether it was fetched, and what it checked
+- [x] Each run logs searches, distinct sources, pages fetched and the share of checked claims verified
+- [x] Pre-run cost ceiling includes searches, search results and checking; default full-run cap raised to $1.00
+- [x] Tests against a simulated API and a simulated web
+- [x] First live run, topic `os`: 11 pages cited, 7 fetched, 5 of 8 key claims verified against python.org and the free-threading guide, D1 resolved, $0.17. Gemini's search failed (HTTP 504) and it dropped out; fixed by answering without search
+- [x] Second live run after the fixes: all three members answered after 1, 5 and 2 searches, 17 pages cited, 4 of 8 key claims verified, $0.28. Search fees are included in the cost OpenRouter reports
+- [x] Budget caps reviewed against measured costs: full runs with search cost $0.17 and $0.28 against a $0.59 ceiling, so the $1.00 default cap stands
+- [ ] `--deep`: moved to follow-ups (decision 0011)
 
 ### 6. MCP server: pending
 
@@ -148,13 +153,13 @@ Done when the chart shows at least one public source beside the personal leaderb
 | Item | Detail | Planned |
 | --- | --- | --- |
 | Chairman can also be a member | In the first live run the chairman, Claude Sonnet 5.5, also wrote response A, which the peer ranking put first. The chairman sees letters, not names, but may still favour its own model's answer | Compare chairmen with `--chairman` on a few questions, then decide whether the default chairman should come from outside the members |
-| First live attempt ran out of credit | The key's spending limit was too low: two of three members were refused (HTTP 402) and the run stopped after research. This led to the pre-run credit check above, and `show` now labels such runs "full, stopped before the one-page answer" instead of "quick" | Done; live run to be repeated |
-| Duplicate claims in memory | The memory update can add a claim that repeats one it just changed: on topic `os`, new C8 repeats the caveat added to C6. The rules check labels and ids, not overlap | Ask the chairman to change rather than add when a claim overlaps, and flag near-duplicates in code |
-| Reviewers can be confidently wrong | A reviewer said PEP 779 does not exist; it does, and it set the criteria under which Python 3.14 supports free-threading. The chairman then called the correct citation unreliable | Claim checking against sources in milestone 5 |
-| Settled disagreements stored as open disputes | When reviewers outvote a claim and the chairman settles it on the page, the memory update can still open it as a dispute (D2 and D3 on topic `os`; the next run resolved both) | Have the memory prompt record such points as resolved disputes, or leave them out |
-| Reviewer numbers on the final page | The page says "Reviewers 1 and 2", but nothing maps reviewer numbers to models | Name reviewers by the letter of their own response |
+| Duplicate claims in memory | The memory update can add a claim that repeats one it just changed: on topic `os`, new C8 repeats the caveat added to C6 | Milestone 5: the memory prompt now says to change rather than add; code refuses near-identical claims and flags likely repeats as "may repeat C6". Word overlap is a rough guide, so watch for misses |
+| Reviewers can be confidently wrong | A reviewer said PEP 779 does not exist; it does, and it set the criteria under which Python 3.14 supports free-threading. The chairman then called the correct citation unreliable | Claim checking built in milestone 5; the live run should settle D1 on topic `os` |
+| Settled disagreements stored as open disputes | When reviewers outvote a claim and the chairman settles it on the page, the memory update can still open it as a dispute (D2 and D3 on topic `os`; the next run resolved both) | Milestone 5: the memory prompt now says not to open a dispute the page settles. Watch in live runs |
 | CI results for milestone 2 unconfirmed | The milestone 2 run took 10.5 minutes and its secret scan passed, but the test job results have not been checked | Check on the Actions page |
-| Cost estimate is a ceiling | The pre-run check assumes every model writes the longest answer allowed, so it can refuse runs that would have cost less | Revisit with measured data in milestone 5 |
+| Cost estimate is a ceiling | The pre-run check assumes every model writes the longest answer allowed and uses every search, so it can refuse runs that would have cost less. A `balanced` full run's ceiling is about $0.59; measured runs with search cost $0.17 and $0.28 | Keep; revisit if it refuses runs that would have fitted |
+| Search limit not always kept | With a limit of 3 searches per answer, GPT-6.1 Sol ran 5 in the second live run. OpenRouter billed it $0.014 in search fees, so the cost was small, and the pre-run ceiling has room for it | Check whether the limit belongs elsewhere in the request; until then the ceiling is an estimate |
+| `--deep` devil's advocate | One low-cost model argues against the consensus and the chairman answers its strongest point (decision 0005) | Moved from milestone 5; not scheduled |
 | `conclave rebuild <topic>` | Regenerate a topic's summary from all its runs and show how it differs from the current one, as a drift check. Deferred until topics have enough runs to drift | After milestone 5 |
 | No interactive model picker | Profiles are built with `conclave profile add`; an interactive picker may come later | Not scheduled |
 

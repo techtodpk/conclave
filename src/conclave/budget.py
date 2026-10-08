@@ -5,7 +5,13 @@ from __future__ import annotations
 import math
 
 from conclave.catalog import ModelInfo
-from conclave.client import REASONING_ALLOWANCE, Completion
+from conclave.client import (
+    MAX_RESULTS_PER_ANSWER,
+    REASONING_ALLOWANCE,
+    RESULTS_PER_SEARCH,
+    SEARCH_PRICE_USD,
+    Completion,
+)
 from conclave.config import Member
 
 # A rough rule of thumb for English text. Good enough for a worst-case estimate;
@@ -61,6 +67,62 @@ def memory_update_cost(
     return worst_case_cost([chairman], catalog, prompt, MEMORY_MAX_TOKENS)
 
 
+# An Exa search result reaches the model as an excerpt of 2,000 to 4,000 characters.
+SEARCH_RESULT_TOKENS = 800
+
+# Claim checking: the checker picks the key claims, then tests each against its sources.
+EXTRACT_MAX_TOKENS = 1200
+SOURCES_PER_CLAIM = 2
+PASSAGE_CHARS = 2500  # the part of each source page the checker reads for one claim
+CLAIM_TOKENS = 80  # one claim and its labels in a prompt
+
+
+def check_max_tokens(claims: int) -> int:
+    """The checker writes a short verdict, a quote and a note for each claim."""
+    return 300 + 150 * claims
+
+
+def check_prompt_tokens(claims: int) -> int:
+    passages = claims * SOURCES_PER_CLAIM * math.ceil(PASSAGE_CHARS / CHARS_PER_TOKEN)
+    return STAGE_OVERHEAD_TOKENS + claims * CLAIM_TOKENS + passages
+
+
+def research_worst_case(
+    members: list[Member],
+    catalog: dict[str, ModelInfo],
+    prompt_tokens: int,
+    answer_tokens: int,
+    searches: int = 0,
+) -> float:
+    """The most the Research stage could cost, searches included.
+
+    After each search the model reads the whole conversation again, so the question is
+    billed up to `searches` + 1 times, and the search results pile up as it goes.
+    """
+    if searches <= 0:
+        return worst_case_cost(members, catalog, prompt_tokens, answer_tokens)
+    results = min(searches * RESULTS_PER_SEARCH, MAX_RESULTS_PER_ANSWER) * SEARCH_RESULT_TOKENS
+    prompt = (searches + 1) * prompt_tokens + searches * results
+    fees = len(members) * searches * SEARCH_PRICE_USD
+    return worst_case_cost(members, catalog, prompt, answer_tokens) + fees
+
+
+def verify_worst_case(
+    checker: Member,
+    catalog: dict[str, ModelInfo],
+    extract_prompt_tokens: int,
+    claims: int,
+) -> float:
+    """The most claim checking could cost: picking the claims, then checking them."""
+    if claims <= 0:
+        return 0.0
+    extract = worst_case_cost([checker], catalog, extract_prompt_tokens, EXTRACT_MAX_TOKENS)
+    check = worst_case_cost(
+        [checker], catalog, check_prompt_tokens(claims), check_max_tokens(claims)
+    )
+    return extract + check
+
+
 def full_run_worst_case(
     members: list[Member],
     chairman: Member,
@@ -68,24 +130,36 @@ def full_run_worst_case(
     research_prompt_tokens: int,
     answer_tokens: int,
     listing_tokens: int | None = None,
+    searches: int = 0,
+    checker: Member | None = None,
+    claims: int = 0,
 ) -> float:
     """The most a full run could cost, if every call writes the longest text allowed.
 
     `listing_tokens` is the size of the topic's memory; None means memory is not updated.
+    `searches` is each member's search limit, 0 for no web search. Claims are checked
+    only when there are searches to check them against and a checker.
     """
     count = len(members)
     review_tokens = critique_max_tokens(answer_tokens)
-    research = worst_case_cost(members, catalog, research_prompt_tokens, answer_tokens)
+    research = research_worst_case(
+        members, catalog, research_prompt_tokens, answer_tokens, searches
+    )
     critique = worst_case_cost(
         members,
         catalog,
         research_prompt_tokens + STAGE_OVERHEAD_TOKENS + (count - 1) * answer_tokens,
         review_tokens,
     )
+    discussion = (
+        research_prompt_tokens + STAGE_OVERHEAD_TOKENS + count * (answer_tokens + review_tokens)
+    )
+    checked = claims if searches > 0 and checker is not None else 0
+    verify = 0.0 if checker is None else verify_worst_case(checker, catalog, discussion, checked)
     synthesis = worst_case_cost(
         [chairman],
         catalog,
-        research_prompt_tokens + STAGE_OVERHEAD_TOKENS + count * (answer_tokens + review_tokens),
+        discussion + checked * (CLAIM_TOKENS + 200),
         synthesis_max_tokens(answer_tokens),
     )
     memory = (
@@ -93,7 +167,7 @@ def full_run_worst_case(
         if listing_tokens is None
         else memory_update_cost(chairman, catalog, listing_tokens, answer_tokens)
     )
-    return research + critique + synthesis + memory
+    return research + critique + verify + synthesis + memory
 
 
 def cost_of(completion: Completion, info: ModelInfo | None) -> tuple[float | None, str]:
@@ -104,6 +178,7 @@ def cost_of(completion: Completion, info: ModelInfo | None) -> tuple[float | Non
         computed = (
             completion.prompt_tokens * info.prompt_price
             + completion.completion_tokens * info.completion_price
+            + (completion.searches or 0) * SEARCH_PRICE_USD
         )
         return computed, "estimated"
     return None, "unknown"

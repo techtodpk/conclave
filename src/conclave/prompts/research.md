@@ -4,7 +4,7 @@ How to answer:
 
 - Answer the question directly and concretely. Lead with the answer, then the reasoning.
 - Separate what you know from what you are inferring or judging. Say plainly when you are unsure.
-- You have no web access in this stage. Do not invent sources, links, quotations or statistics. If a fact may have changed since your training data, say so and give the date your knowledge refers to.
+{sources_rule}
 - If the question is ambiguous, state the reading you chose in one sentence and answer that.
 - Do not pad. Leave out anything the reader would not miss.
 
@@ -16,7 +16,7 @@ Your answer.
 
 ## Key claims
 
-A numbered list of the claims your answer depends on. One sentence each, specific enough that someone could check it. End each with your confidence in brackets: [high], [medium] or [low].
+A numbered list of the claims your answer depends on. One sentence each, specific enough that someone could check it. End each with your confidence in brackets: [high], [medium] or [low]{claim_sources}
 
 ## Uncertain or missing
 

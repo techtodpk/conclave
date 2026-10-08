@@ -17,7 +17,11 @@ LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 class ModelClient(Protocol):
     async def complete(
-        self, member: Member, messages: list[dict[str, str]], max_tokens: int
+        self,
+        member: Member,
+        messages: list[dict[str, str]],
+        max_tokens: int,
+        searches: int = 0,
     ) -> Completion: ...
 
 
@@ -96,11 +100,18 @@ def _responses(answers: list[Labeled]) -> str:
 
 
 async def ask_one(
-    client: ModelClient, seat: Seat, messages: list[dict[str, str]], max_tokens: int
+    client: ModelClient,
+    seat: Seat,
+    messages: list[dict[str, str]],
+    max_tokens: int,
+    searches: int = 0,
 ) -> SeatResult:
     """Make one call. Errors are returned, never raised, so one failure stops nothing else."""
     try:
-        completion = await client.complete(seat.member, messages, max_tokens)
+        if searches:
+            completion = await client.complete(seat.member, messages, max_tokens, searches)
+        else:
+            completion = await client.complete(seat.member, messages, max_tokens)
     except ModelError as error:
         return SeatResult(seat=seat, error=str(error))
     except Exception as error:  # noqa: BLE001 - keep the other calls' results
@@ -111,9 +122,22 @@ async def ask_one(
 # --- Research -------------------------------------------------------------------
 
 
-def research_messages(question: str, today: date, recall: str = "") -> list[dict[str, str]]:
+def research_prompt(web: bool) -> str:
+    """The Research stage's instructions, with or without web search."""
+    rule = load_prompt("research_web" if web else "research_offline")
+    tail = (
+        ", then the links it rests on, if any, as in: Sources: [Python docs](https://docs.python.org/3/)."
+        if web
+        else "."
+    )
+    return load_prompt("research").replace("{sources_rule}", rule).replace("{claim_sources}", tail)
+
+
+def research_messages(
+    question: str, today: date, recall: str = "", web: bool = False
+) -> list[dict[str, str]]:
     return [
-        {"role": "system", "content": load_prompt("research")},
+        {"role": "system", "content": research_prompt(web)},
         {"role": "user", "content": _header(question, today, recall)},
     ]
 
@@ -125,10 +149,13 @@ async def research(
     max_tokens: int,
     today: date,
     recall: str = "",
+    searches: int = 0,
 ) -> list[SeatResult]:
-    """Ask every seat the question at the same time."""
-    messages = research_messages(question, today, recall)
-    return list(await asyncio.gather(*(ask_one(client, s, messages, max_tokens) for s in seats)))
+    """Ask every seat the question at the same time. `searches` above 0 allows web search."""
+    messages = research_messages(question, today, recall, web=searches > 0)
+    return list(
+        await asyncio.gather(*(ask_one(client, s, messages, max_tokens, searches) for s in seats))
+    )
 
 
 CUT_OFF_NOTE = "\n\n[This text was cut off at the length limit, so it ends early.]"
@@ -249,11 +276,12 @@ def synthesis_messages(
     reviews: list[Review],
     table: list[Standing],
     recall: str = "",
+    checks: str = "",
 ) -> list[dict[str, str]]:
     readable = [r for r in reviews if r.ok]
     review_text = "\n\n".join(
-        f"### Review {number}\n\n{shown_text(r.result.completion)}"  # type: ignore[arg-type]
-        for number, r in enumerate(readable, start=1)
+        f"### Review by the author of Response {r.letter}\n\n{shown_text(r.result.completion)}"  # type: ignore[arg-type]
+        for r in readable
     )
     ranked = [s for s in table if s.average_position is not None]
     ranking_line = (
@@ -267,6 +295,12 @@ def synthesis_messages(
         f"## The members' reviews of each other\n\n{review_text or 'No reviews were returned.'}\n\n"
         f"## Peer ranking\n\nAverage position, lower is better: {ranking_line}"
     )
+    if checks:
+        user += (
+            "\n\n## Claim checks\n\nA checker tested these claims against the pages the members "
+            "cited. Use the label shown for each one that appears among your key claims.\n\n"
+            + checks
+        )
     return [
         {"role": "system", "content": load_prompt("synthesis")},
         {"role": "user", "content": user},
@@ -281,8 +315,15 @@ def final_page(
     chairman: str,
     table: list[Standing],
     reviews: list[Review],
+    evidence: str = "",
+    sources: str = "",
+    checked: bool = False,
 ) -> str:
-    """The one-page answer saved as final.md: the chairman's text plus how it was made."""
+    """The one-page answer saved as final.md: the chairman's text plus how it was made.
+
+    `evidence` replaces the line under the title that says what was checked; `sources`
+    is the list of pages the members cited, added after the chairman's text.
+    """
     readable = sum(1 for r in reviews if r.ranking is not None)
     rows = "\n".join(
         f"| {s.letter} | `{s.model}` | "
@@ -294,16 +335,23 @@ def final_page(
         + " |"
         for s in table
     )
-    return (
-        f"# {question.strip()}\n\n"
-        f"*Conclave full run, {asked}, profile '{profile}'. Nothing here was checked against "
-        "live sources; claims come from the models' training data.*\n\n"
-        f"{body.strip()}\n\n"
-        "## How this answer was made\n\n"
+    evidence = evidence or (
+        "Nothing here was checked against live sources; claims come from the models' training data."
+    )
+    made = (
         "Each member answered alone, then reviewed the others' answers with the authors hidden "
         f"behind letters. The chairman, `{chairman}`, wrote this page from the answers and "
-        "reviews.\n\n"
-        "| Response | Model | Peer ranking (average position, lower is better) |\n"
+        "reviews"
+    )
+    made += ", and from the claim checks in verification.md.\n\n" if checked else ".\n\n"
+    return (
+        f"# {question.strip()}\n\n"
+        f"*Conclave full run, {asked}, profile '{profile}'. {evidence}*\n\n"
+        f"{body.strip()}\n\n"
+        + (f"## Sources\n\n{sources.strip()}\n\n" if sources else "")
+        + "## How this answer was made\n\n"
+        + made
+        + "| Response | Model | Peer ranking (average position, lower is better) |\n"
         "| --- | --- | --- |\n"
         f"{rows}\n\n"
         f"Readable rankings: {readable} of {len(reviews)}.\n"

@@ -1,0 +1,1 @@
+- You have no web access in this stage. Do not invent sources, links, quotations or statistics. If a fact may have changed since your training data, say so and give the date your knowledge refers to.

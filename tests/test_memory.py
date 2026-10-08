@@ -73,7 +73,7 @@ def test_duplicates_are_not_added_again():
     )
 
     assert changes.empty
-    assert "already in memory" in changes.skipped[0]
+    assert "Not added, repeats C" in changes.skipped[0]
 
 
 def test_change_keeps_history_and_needs_an_entry_label():
@@ -242,7 +242,7 @@ def test_long_memory_is_cut_short(tmp_path):
         memory,
         {
             "add": [
-                {"text": f"Claim number {i} " + "x" * 200, "label": "agreed but unchecked"}
+                {"text": f"Claim {i} on subject{i} " + "x" * 200, "label": "agreed but unchecked"}
                 for i in range(100)
             ]
         },
@@ -256,3 +256,96 @@ def test_long_memory_is_cut_short(tmp_path):
     assert len(recall.text) < 12_100
     assert recall.text.endswith("(Earlier research cut short.)")
     json.dumps(recall.text)
+
+
+def test_new_claim_that_may_repeat_a_just_changed_claim_is_flagged():
+    memory = TopicMemory("os")
+    apply_patch(
+        memory,
+        {
+            "add": [
+                {
+                    "text": "For I/O-bound work, threads or async I/O are usually sufficient.",
+                    "label": "agreed but unchecked",
+                }
+            ]
+        },
+        "run-1",
+        TODAY,
+    )
+    patch = {
+        "change": [
+            {
+                "id": "C1",
+                "text": "For I/O-bound work, threads or async I/O are usually sufficient, but "
+                "CPU-heavy work on an async event loop delays all clients on that loop.",
+                "label": "agreed but unchecked",
+                "reason": "Sharper.",
+            }
+        ],
+        "add": [
+            {
+                "text": "CPU-heavy work on an asyncio event loop delays every client served by "
+                "that loop.",
+                "label": "agreed but unchecked",
+            },
+            {
+                "text": "Partitioning by match avoids cross-process state.",
+                "label": "agreed but unchecked",
+            },
+        ],
+    }
+
+    changes = apply_patch(memory, patch, "run-2", LATER)
+
+    assert [c.id for c in changes.added] == ["C2", "C3"]
+    assert changes.similar == {"C2": "C1"}
+    assert "(may repeat C1)" in changes.lines()[0]
+    assert "may repeat" not in changes.lines()[1]
+
+
+def test_verified_label_needs_a_matching_checked_claim():
+    memory = TopicMemory("sky")
+    patch = {
+        "add": [
+            {"text": "Rayleigh scattering makes the sky blue.", "label": "verified"},
+            {"text": "The moon is made of cheese.", "label": "verified"},
+        ]
+    }
+
+    changes = apply_patch(
+        memory, patch, "run-1", TODAY, verified=["The sky is blue because of Rayleigh scattering."]
+    )
+
+    assert [c.label for c in changes.added] == ["verified", "agreed but unchecked"]
+    assert any("no matching verified claim" in line for line in changes.skipped)
+
+
+def test_without_any_checks_nothing_is_stored_as_verified():
+    memory = TopicMemory("sky")
+    changes = apply_patch(
+        memory, {"add": [{"text": "A claim.", "label": "verified"}]}, "run-1", TODAY, verified=[]
+    )
+
+    assert changes.added[0].label == "agreed but unchecked"
+
+
+def test_verified_claim_may_not_add_unchecked_detail():
+    checked = [
+        "asyncio is safe in multi-threaded use under free-threaded Python since 3.14. "
+        "Since Python 3.14, asyncio has first-class support for free-threaded Python"
+    ]
+    longer = (
+        "asyncio has first-class free-threading support since Python 3.14, and its "
+        "implementation is safe in a multi-threaded environment, though individual "
+        "objects still need care across threads."
+    )
+    same = "asyncio has first-class support for free-threaded Python since 3.14."
+
+    def stored(text):
+        memory = TopicMemory("os")
+        patch = {"add": [{"text": text, "label": "verified"}]}
+        return apply_patch(memory, patch, "run-1", TODAY, verified=checked).added[0].label
+
+    assert stored(longer) == "agreed but unchecked"
+    assert stored(same) == "verified"
