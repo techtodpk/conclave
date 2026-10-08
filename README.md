@@ -2,7 +2,7 @@
 
 **An LLM council that remembers.** Several models research the same question, critique each other, and save what they conclude to a research store on your own machine. Every later question on that topic starts from what the council already worked out.
 
-> **Status: milestone 1 of 8.** The project scaffold, configuration and research store setup work today. Asking questions arrives in milestone 2. See the [roadmap](#roadmap).
+> **Status: milestone 2 of 8.** You can ask a question and get an answer from every member of your council, saved to your research store. Cross-critique and the one-page synthesis arrive in milestone 3. See the [roadmap](#roadmap).
 
 ## Why this exists
 
@@ -69,6 +69,24 @@ conclave init      # creates ~/.conclave/config.toml and ~/conclave-research
 conclave config    # shows the store, budget caps and every profile in effect
 ```
 
+Add your [OpenRouter](https://openrouter.ai/keys) key (the [setup guide](docs/SETUP.md#6-add-your-api-key) says where), then ask:
+
+```bash
+conclave ask "Is Unity DOTS ready for production?"                  # quick: the chairman answers
+conclave ask "Is Unity DOTS ready for production?" --full -t unity   # full: every member answers
+```
+
+Every run is saved as plain files under its topic in your research store:
+
+```
+conclave-research/topics/unity/runs/2026-10-07-143205-is-unity-dots-ready-for-production/
+  question.md
+  answers/anthropic--claude-sonnet-5.5.md
+  answers/google--gemini-3.8-flash.md
+  answers/openai--gpt-6.1-sol.md
+  meta.json          models, tokens, cost and timings
+```
+
 `conclave init --store /path/to/folder` puts the research store somewhere else. Running `init` again never overwrites anything.
 
 ## Choosing your council
@@ -83,18 +101,30 @@ The council is not fixed. A **profile** names the members who answer, the chairm
 
 Pick members from different vendors. Models from one lab tend to share blind spots, and `conclave config` warns when two members share a vendor.
 
-Model ids in the default config are OpenRouter ids as listed in October 2026. They change, so check them against the [OpenRouter model list](https://openrouter.ai/models) before your first run.
+To see what is available and what it costs, then build your own council:
+
+```bash
+conclave models --search claude --sort price
+conclave profile add mine \
+  --members google/gemini-3.8-flash,deepseek/deepseek-v4.1-flash,openai/gpt-6.1-sol \
+  --chairman anthropic/claude-opus-5.5
+conclave ask "your question" --profile mine --full
+```
+
+`conclave ask --members a/model,b/model` asks a one-off set of models without saving a profile.
+
+Model ids in the default config were checked against the [OpenRouter model list](https://openrouter.ai/models) on 7 October 2026. Ids change over time, and Conclave checks them against the live list before every run.
 
 ## Cost
 
 Conclave calls models through pay-per-use APIs. Subscriptions to chat apps generally do not cover API use, so this is a separate cost, and the design keeps it low.
 
 - **One key.** An [OpenRouter](https://openrouter.ai/) key reaches every model. Credits are prepaid, so spending stops when the balance runs out.
-- **Budget caps.** The config sets a cap per full run, per quick run and per month. A run that reaches its cap stops before the next stage and saves what it has.
+- **Budget caps.** The config sets a cap per full run, per quick run and per month. Before anything is sent, Conclave works out the most a run could cost and refuses it if that is above the cap.
 - **Quick mode by default.** One model plus your store answers most questions. The full council runs when you ask for it.
 - **Your own subscriptions, optionally.** From milestone 7, a member can be routed through a vendor's official command-line tool running on your own plan instead of the API. This is for personal use only, and you are responsible for checking your plan's terms.
 
-Measured cost per run will be published here once milestone 2 produces real numbers.
+Every run records its real cost in `meta.json` and prints it. Measured figures for typical runs will be published here once there are enough of them.
 
 ## Privacy
 
@@ -108,7 +138,7 @@ Keep your research store out of this repository. The `.gitignore` ignores `resea
 ## Roadmap
 
 - [x] **1. Repo setup.** Licence, README, config, research store setup, tests and CI.
-- [ ] **2. Council core.** Model client, profiles, a model picker with live prices, and the Research stage.
+- [x] **2. Council core.** Model client, profiles, a model list with live prices, and the Research stage.
 - [ ] **3. Critique and chairman.** Anonymised cross-review with saved rankings, then the one-page synthesis.
 - [ ] **4. Store and recall.** Topic folders, summary and dispute updates, search, and a personal leaderboard.
 - [ ] **5. Web search and claim check.** Search-enabled members, claim extraction, source fetch, verdicts.

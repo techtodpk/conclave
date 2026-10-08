@@ -1,12 +1,20 @@
 """The local research store: plain files on the user's own disk.
 
-Milestone 1 only creates the folder. Topic folders, runs and the search index
-arrive in milestone 4.
+Milestone 2 saves each question as a run folder under its topic. Topic
+summaries, disputes and the search index arrive in milestone 4.
 """
 
 from __future__ import annotations
 
+import json
+import re
+import unicodedata
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+from typing import Any
+
+DEFAULT_TOPIC = "general"
 
 STORE_README = """\
 # Conclave research store
@@ -50,3 +58,84 @@ def init_store(path: Path) -> list[Path]:
         readme.write_text(STORE_README, encoding="utf-8")
         created.append(readme)
     return created
+
+
+def slugify(text: str, max_words: int = 8, max_length: int = 60, fallback: str = "untitled") -> str:
+    """Turn any text into a short lowercase name that is safe as a folder name everywhere."""
+    plain = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    words = re.findall(r"[a-z0-9]+", plain.lower())[:max_words]
+    slug = "-".join(words)[:max_length].strip("-")
+    return slug or fallback
+
+
+def model_filename(model_id: str) -> str:
+    """A file name for a model's answer: 'vendor/model' becomes 'vendor--model.md'."""
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", model_id.replace("/", "--")).strip("-")
+    return f"{safe or 'model'}.md"
+
+
+@dataclass(frozen=True)
+class Run:
+    """One question's folder. Written once and never edited afterwards."""
+
+    path: Path
+    topic: str
+
+    @property
+    def answers(self) -> Path:
+        return self.path / "answers"
+
+
+def create_run(store: Path, topic: str, question: str, started: datetime) -> Run:
+    """Create a new run folder: topics/<topic>/runs/<date-time>-<question>/"""
+    topic_slug = slugify(topic, fallback=DEFAULT_TOPIC)
+    runs = store / "topics" / topic_slug / "runs"
+    base = f"{started:%Y-%m-%d-%H%M%S}-{slugify(question, fallback='question')}"
+
+    path = runs / base
+    counter = 2
+    while path.exists():
+        path = runs / f"{base}-{counter}"
+        counter += 1
+    (path / "answers").mkdir(parents=True)
+    return Run(path=path, topic=topic_slug)
+
+
+def write_question(run: Run, question: str, details: dict[str, str]) -> Path:
+    lines = ["# Question", "", question.strip(), ""]
+    lines += [f"- {label}: {value}" for label, value in details.items()]
+    target = run.path / "question.md"
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return target
+
+
+def write_answer(run: Run, model_id: str, role: str, text: str) -> Path:
+    target = run.answers / model_filename(model_id)
+    counter = 2
+    while target.exists():  # the same model seated twice in one run
+        target = run.answers / model_filename(f"{model_id}-{counter}")
+        counter += 1
+    header = f"---\nmodel: {model_id}\nrole: {role}\n---\n\n"
+    target.write_text(header + text.strip() + "\n", encoding="utf-8")
+    return target
+
+
+def write_meta(run: Run, meta: dict[str, Any]) -> Path:
+    target = run.path / "meta.json"
+    target.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+    return target
+
+
+def month_spend(store: Path, now: datetime) -> float:
+    """Total recorded cost of every run started in the same calendar month as `now`."""
+    total = 0.0
+    for meta_file in store.glob("topics/*/runs/*/meta.json"):
+        try:
+            meta = json.loads(meta_file.read_text(encoding="utf-8"))
+            started = datetime.fromisoformat(meta["started"])
+            cost = meta["totals"]["cost_usd"]
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        if (started.year, started.month) == (now.year, now.month) and isinstance(cost, int | float):
+            total += float(cost)
+    return total

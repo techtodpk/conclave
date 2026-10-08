@@ -126,3 +126,21 @@ def test_config_path_honours_the_environment(monkeypatch, tmp_path):
 
     monkeypatch.delenv("CONCLAVE_CONFIG")
     assert default_config_path() == Path.home() / ".conclave" / "config.toml"
+
+
+def test_max_answer_tokens_defaults_and_is_validated():
+    assert parse_config(MINIMAL).max_answer_tokens == 1500
+
+    custom = MINIMAL.replace("claims_checked = 5", "claims_checked = 5\nmax_answer_tokens = 800")
+    assert parse_config(custom).max_answer_tokens == 800
+
+    too_small = MINIMAL.replace("claims_checked = 5", "claims_checked = 5\nmax_answer_tokens = 5")
+    with pytest.raises(ConfigError, match="max_answer_tokens"):
+        parse_config(too_small)
+
+
+def test_budget_cap_depends_on_the_mode():
+    budget = parse_config(MINIMAL).budget
+
+    assert budget.cap_for("full") == 0.75
+    assert budget.cap_for("quick") == 0.05

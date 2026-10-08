@@ -13,6 +13,9 @@ default_profile = "balanced"
 default_mode = "quick"
 # How many key claims the Verify stage checks in a full run.
 claims_checked = 8
+# The longest answer a model may give, in tokens (about 0.75 words each).
+# Lower it to cut cost; raise it for long, detailed answers.
+max_answer_tokens = 1500
 
 [budget]
 # Spending limits in US dollars. A run that reaches its cap stops before the

@@ -18,6 +18,8 @@ CONFIG_ENV = "CONCLAVE_CONFIG"
 ROUTES = ("api", "cli")
 MODES = ("quick", "full")
 MIN_MEMBERS = 2
+DEFAULT_MAX_ANSWER_TOKENS = 1500
+MIN_ANSWER_TOKENS = 100
 
 
 class ConfigError(Exception):
@@ -60,6 +62,10 @@ class Budget:
     quick_run_usd: float
     monthly_usd: float
 
+    def cap_for(self, mode: str) -> float:
+        """The per-run cap that applies to a run in this mode."""
+        return self.full_run_usd if mode == "full" else self.quick_run_usd
+
 
 @dataclass(frozen=True)
 class Config:
@@ -69,6 +75,7 @@ class Config:
     claims_checked: int
     budget: Budget
     profiles: dict[str, Profile]
+    max_answer_tokens: int = DEFAULT_MAX_ANSWER_TOKENS
 
     def profile(self, name: str | None = None) -> Profile:
         """Return the named profile, or the default one when no name is given."""
@@ -143,6 +150,16 @@ def parse_config(text: str) -> Config:
     ):
         raise ConfigError("run.claims_checked must be a whole number, 0 or more")
 
+    max_answer_tokens = run.get("max_answer_tokens", DEFAULT_MAX_ANSWER_TOKENS)
+    if (
+        not isinstance(max_answer_tokens, int)
+        or isinstance(max_answer_tokens, bool)
+        or max_answer_tokens < MIN_ANSWER_TOKENS
+    ):
+        raise ConfigError(
+            f"run.max_answer_tokens must be a whole number, {MIN_ANSWER_TOKENS} or more"
+        )
+
     return Config(
         store_path=Path(_text(store, "path", "store")).expanduser(),
         default_profile=default_profile,
@@ -154,6 +171,7 @@ def parse_config(text: str) -> Config:
             monthly_usd=_amount(budget, "monthly_usd"),
         ),
         profiles=profiles,
+        max_answer_tokens=max_answer_tokens,
     )
 
 
@@ -178,7 +196,7 @@ def _amount(table: dict[str, Any], key: str) -> float:
     return float(value)
 
 
-def _member(raw: Any, where: str) -> Member:
+def parse_member(raw: Any, where: str = "member") -> Member:
     """Accept either "vendor/model" or { model = "vendor/model", route = "api" }."""
     if isinstance(raw, str):
         model, route = raw, "api"
@@ -203,7 +221,7 @@ def _profile(name: str, raw: Any) -> Profile:
     if not isinstance(raw_members, list) or len(raw_members) < MIN_MEMBERS:
         raise ConfigError(f"{where}.members must list at least {MIN_MEMBERS} models")
     members = tuple(
-        _member(item, f"{where}.members[{index}]") for index, item in enumerate(raw_members)
+        parse_member(item, f"{where}.members[{index}]") for index, item in enumerate(raw_members)
     )
 
     for role in ("chairman", "checker"):
@@ -213,6 +231,6 @@ def _profile(name: str, raw: Any) -> Profile:
     return Profile(
         name=name,
         members=members,
-        chairman=_member(raw["chairman"], f"{where}.chairman"),
-        checker=_member(raw["checker"], f"{where}.checker"),
+        chairman=parse_member(raw["chairman"], f"{where}.chairman"),
+        checker=parse_member(raw["checker"], f"{where}.checker"),
     )

@@ -74,3 +74,15 @@ def test_invalid_config_exits_with_a_clear_message(tmp_path):
 
     assert result.exit_code == 1
     assert "Config problem" in result.output
+
+
+def test_python_dash_m_conclave_works():
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-m", "conclave", "--version"], capture_output=True, text=True, check=False
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == f"conclave {__version__}"
