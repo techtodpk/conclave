@@ -45,25 +45,28 @@ The MCP server needs four tools: `search_research`, `get_topic`, `ask_council` a
   index.sqlite               full-text index, rebuilt from the files
   topics/
     <topic-slug>/
-      summary.md             current best answer for the topic
-      disputes.md            disagreements, each marked open or resolved
-      sources.md             every link used, date fetched, check verdict
-      notes.md               your own notes; the council reads these too
+      memory.json            the record of claims and disputes
+      summary.md             the active claims, written from memory.json
+      disputes.md            disagreements, open or resolved, written from memory.json
+      sources.md             every link used, date fetched, check verdict (milestone 5)
+      notes.md               your own notes; the council reads these first
       runs/
         <date>-<question-slug>/
           question.md
+          recall.md          the earlier research the council was given
           answers/<model>.md
           critiques/<model>.md
           rankings.json      each model's ranking of the others
-          verification.md
-          final.md           the one-page answer
+          verification.md    (milestone 5)
+          final.md           the one-page answer, ending with what changed in memory
+          memory_patch.json  memory changes proposed, applied and refused
           meta.json          profile, models, tokens, cost, timings
 ```
 
 Two rules keep the store trustworthy:
 
 - **Runs are never edited.** Each run folder is a permanent record of what every model said.
-- **The council changes only three files.** `summary.md`, `disputes.md` and `sources.md` are updated after each run, with one Git commit per run when the store is a Git repository.
+- **The council changes only the topic's memory.** `memory.json`, and the `summary.md` and `disputes.md` written from it, are updated after each full run, with one Git commit per run when the store is a Git repository. `notes.md` belongs to the user and is only appended to.
 
 ## Safeguards
 

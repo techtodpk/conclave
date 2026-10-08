@@ -2,7 +2,7 @@
 
 **An LLM council that remembers.** Several models research the same question, critique each other, and save what they conclude to a research store on your own machine. Every later question on that topic starts from what the council already worked out.
 
-> **Status: milestone 3 of 8, version 0.3.0.** Conclave asks a council of models the same question, has each member review the others' answers with the authors hidden, and has a chairman write a one-page answer showing what the members agreed and disagreed on. It does not yet remember earlier research or search the web. See [what works today](#what-works-today), and [project status](docs/STATUS.md) for what is being built now and what is still to come.
+> **Status: milestone 4 of 8, version 0.4.0.** Conclave asks a council of models the same question, has each member review the others' answers with the authors hidden, and has a chairman write a one-page answer. It keeps a memory per topic: what the council concluded, open disputes and your own notes are read before every new question on that topic, and full runs update it. It does not yet search the web. See [what works today](#what-works-today), and [project status](docs/STATUS.md) for what is being built now and what is still to come.
 
 ## What works today
 
@@ -15,8 +15,9 @@
 | Budget caps per run and per month, checked before anything is sent | Works | Milestone 2 |
 | Members review each other's answers with the authors hidden, and rank them | Works | Milestone 3 |
 | Chairman's one-page answer, with every key claim labelled and the disagreements set out | Works | Milestone 3 |
-| Topic memory: earlier research is read before each new question | Not yet | Milestone 4 |
-| Search across your past research; personal model leaderboard | Not yet | Milestone 4 |
+| Topic memory: earlier conclusions, open disputes and your notes are read before each new question | Works | Milestone 4 |
+| Memory updated after each full run under fixed rules, with every change shown; `--review` to approve first | Works | Milestone 4 |
+| Search across your past research; list topics; personal model leaderboard | Works | Milestone 4 |
 | Web search, and checking key claims against the cited pages | Not yet | Milestone 5 |
 | Use from Claude Desktop and Cursor (MCP server) | Not yet | Milestone 6 |
 | Run members on your own Claude, Gemini or ChatGPT plan instead of the API | Not yet | Milestone 7 |
@@ -24,7 +25,7 @@
 
 **Until web search arrives, answers come from each model's training data.** The one-page answer labels each key claim "agreed but unchecked", "single model" or "disputed"; the "verified" label arrives with claim checking in milestone 5.
 
-Milestone 2 was run against the live OpenRouter API on Windows with Python 3.14 on 8 October 2026. Milestone 3 was run against the live API the same day. The automated tests run in CI on Windows, macOS and Linux with every push.
+Milestone 2 was run against the live OpenRouter API on Windows with Python 3.14 on 8 October 2026. Milestone 3 was run against the live API the same day. Milestone 4 was run against the live API the same day: a second question on a topic started from what the first had concluded, and updated it. The automated tests run in CI on Windows, macOS and Linux with every push.
 
 ## Why this exists
 
@@ -52,7 +53,7 @@ The gaps Conclave is built to close:
 
 ## How it works
 
-This is the design for a full run. Today stages 2, 3 and 5 are built: Research (without web search), Critique and Synthesize. Recall and Save arrive in milestone 4, and Verify in milestone 5. The first and last stages are what connect the debate to the memory.
+This is the design for a full run. Every stage except Verify is built; Verify, and web search in the Research stage, arrive in milestone 5. The first and last stages are what connect the debate to the memory.
 
 ```mermaid
 flowchart TD
@@ -98,19 +99,36 @@ conclave ask "Is Unity DOTS ready for production?"                  # quick: the
 conclave ask "Is Unity DOTS ready for production?" --full -t unity   # full: the council answers, reviews, sums up
 ```
 
-Every run is saved as plain files under its topic in your research store:
+Every run is saved as plain files under its topic in your research store, and each topic keeps a memory beside its runs:
 
 ```
-conclave-research/topics/unity/runs/2026-10-07-143205-is-unity-dots-ready-for-production/
-  question.md
-  answers/anthropic--claude-sonnet-5.5.md
-  answers/google--gemini-3.8-flash.md
-  answers/openai--gpt-6.1-sol.md
-  critiques/...      each member's review of the others, one file per member
-  rankings.json      every member's ranking of the others, and the average
-  final.md           the chairman's one-page answer (full runs)
-  meta.json          every call's model, tokens, cost and timing
+conclave-research/topics/unity/
+  summary.md         what the council has concluded, one claim per line, each with its label
+  disputes.md        disagreements, open or resolved
+  notes.md           your own notes; the council reads them first
+  memory.json        the record the two files above are written from
+  runs/2026-10-08-214739-is-unity-dots-ready-for-production/
+    question.md
+    recall.md        the earlier research the council was given
+    answers/...      each member's answer
+    critiques/...    each member's review of the others
+    rankings.json    every member's ranking of the others
+    final.md         the chairman's one-page answer, ending with what changed in memory
+    memory_patch.json  the memory changes proposed, applied and refused
+    meta.json        every call's model, tokens, cost and timing
 ```
+
+Every question on a topic starts from what the council concluded before. Only full runs change the memory, and the rules are enforced in code, not left to the model: a claim enters only if the members agreed on it, contested points become disputes, and nothing is deleted, only retired with a reason. `--review` shows the changes and asks before saving them; `--fresh` ignores the memory for one run.
+
+```bash
+conclave topics                                  # every topic, with runs, claims and disputes
+conclave show unity                              # what the council has concluded on a topic
+conclave note unity "We ship on low-end Android" # your own note; it outranks the council
+conclave search "netcode"                        # search past answers, summaries and notes
+conclave leaderboard                             # which models the others ranked highest
+```
+
+If the research store is a Git repository (`git init` inside it), every run and note is committed, so any change to the memory can be seen and undone.
 
 A full run prints the one-page answer, then what each stage cost. `--chairman <model id>` picks a different chairman for one run.
 
@@ -160,13 +178,14 @@ Every run records its real cost in `meta.json` and prints it. First measured run
 | Quick | Claude Sonnet 5.5 as chairman | $0.012 | 10 s |
 | Full, research stage only (milestone 2) | Claude Sonnet 5.5, GPT-6.1 Sol, Gemini 3.8 Flash | $0.020 | 18 s |
 | Full: research, critique and synthesis (milestone 3) | Same three members, Claude Sonnet 5.5 as chairman | $0.066 | about 42 s in total |
+| Full, with recall and memory update (milestone 4) | Same council, on a topic with 6 stored claims | $0.090 | about 55 s in total |
 
-The first full run cost $0.066, about 9% of its $0.75 cap; the pre-run ceiling for the `balanced` profile is about $0.12. The chairman's page was the largest single cost ($0.021), because it reads every answer and review. These figures will be updated as claim checking and web search are added.
+The first full run cost $0.066, about 9% of its $0.75 cap. Since milestone 4 a full run adds one small memory-update call, and every call reserves room for the model's hidden reasoning, so the pre-run ceiling for the `balanced` profile is about $0.28, or $0.31 on a topic with a long memory. Real runs cost far less than the ceiling. The chairman's page was the largest single cost ($0.021), because it reads every answer and review. These figures will be updated as claim checking and web search are added.
 
 ## Privacy
 
 - **Your research stays on your machine.** The store is a folder of plain files. Conclave has no server.
-- **Models see what they are asked.** Today that is your question. From milestone 4, the earlier research recalled for the topic is sent too, as part of the prompt.
+- **Models see what they are asked.** That is your question plus the topic's recalled memory: its claims, open disputes and your notes. `--fresh` sends the question alone.
 - **Backup is your choice.** The store reaches a Git remote only if you push it there.
 - **Keys stay out of Git.** The key is read from the environment or a `.env` file outside the code, is never printed or saved in a run, and CI scans every push for secrets.
 
@@ -178,8 +197,8 @@ The task-level plan for each milestone, with what is done, in progress and pendi
 
 - [x] **1. Repo setup.** Licence, README, config, research store setup, tests and CI.
 - [x] **2. Council core.** Model client, profiles, a model list with live prices, and the Research stage.
-- [ ] **3. Critique and chairman.** Anonymised cross-review with saved rankings, then the one-page synthesis.
-- [ ] **4. Store and recall.** Topic folders, summary and dispute updates, search, and a personal leaderboard.
+- [x] **3. Critique and chairman.** Anonymised cross-review with saved rankings, then the one-page synthesis.
+- [x] **4. Store and recall.** Topic memory read before every question and updated after full runs, search, and a personal leaderboard.
 - [ ] **5. Web search and claim check.** Search-enabled members, claim extraction, source fetch, verdicts.
 - [ ] **6. MCP server.** Claude Desktop and Cursor read and write the same store.
 - [ ] **7. CLI adapters and showcase.** Optional subscription routes, a sample topic, measured costs.

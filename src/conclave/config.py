@@ -19,6 +19,9 @@ ROUTES = ("api", "cli")
 MODES = ("quick", "full")
 MIN_MEMBERS = 2
 DEFAULT_MAX_ANSWER_TOKENS = 1500
+# How hard reasoning models think before answering (OpenRouter's reasoning effort).
+REASONING_LEVELS = ("none", "minimal", "low", "medium", "high")
+DEFAULT_REASONING = "low"
 MIN_ANSWER_TOKENS = 100
 
 
@@ -76,6 +79,7 @@ class Config:
     budget: Budget
     profiles: dict[str, Profile]
     max_answer_tokens: int = DEFAULT_MAX_ANSWER_TOKENS
+    reasoning: str = DEFAULT_REASONING
 
     def profile(self, name: str | None = None) -> Profile:
         """Return the named profile, or the default one when no name is given."""
@@ -160,6 +164,10 @@ def parse_config(text: str) -> Config:
             f"run.max_answer_tokens must be a whole number, {MIN_ANSWER_TOKENS} or more"
         )
 
+    reasoning = run.get("reasoning", DEFAULT_REASONING)
+    if reasoning not in REASONING_LEVELS:
+        raise ConfigError(f"run.reasoning must be one of {', '.join(REASONING_LEVELS)}")
+
     return Config(
         store_path=Path(_text(store, "path", "store")).expanduser(),
         default_profile=default_profile,
@@ -172,6 +180,7 @@ def parse_config(text: str) -> Config:
         ),
         profiles=profiles,
         max_answer_tokens=max_answer_tokens,
+        reasoning=reasoning,
     )
 
 

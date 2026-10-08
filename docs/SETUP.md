@@ -2,7 +2,7 @@
 
 This guide takes you from nothing to asking your first question. It covers Windows, macOS and Linux.
 
-**What you can test today (milestone 3):** installing the tool, asking a question to one model or to a whole council, having the members review each other, and reading the chairman's one-page answer. Everything is saved in your research store. The README's [what works today](../README.md#what-works-today) table lists every capability and when it arrives.
+**What you can test today (milestone 4):** installing the tool, asking a question to one model or to a whole council, having the members review each other, reading the chairman's one-page answer, and building up a memory per topic that every later question on that topic starts from. The README's [what works today](../README.md#what-works-today) table lists every capability and when it arrives.
 
 ## 1. What you need
 
@@ -62,7 +62,7 @@ If the terminal says `conclave` is not recognised, use `python -m conclave --ver
 Expected output:
 
 ```
-conclave 0.3.0
+conclave 0.4.0
 ```
 
 ## 5. First run
@@ -139,7 +139,7 @@ Asked the chairman (profile 'balanced', topic 'general')
 
   anthropic/claude-sonnet-5.5  ok     312 in     588 out  $0.0065  9.4s
 
-Cost: $0.0065 of the $0.05 cap for quick runs. This month: $0.0065 of $15.00.
+Cost: $0.0065 of the $0.10 cap for quick runs. This month: $0.0065 of $15.00.
 Saved to: /home/you/conclave-research/topics/general/runs/2026-10-07-143205-what-is-the-difference-between-a-process-and
 ```
 
@@ -178,7 +178,54 @@ Before each later stage, Conclave checks again: if that stage could take the run
 
 If one member fails, for example because its provider is busy, the others carry on and the failure is shown. If only one member answers, there is nothing to compare, so the review and the one-page answer are skipped. If the chairman fails, the answers and reviews are still saved. If no model answers, nothing is saved.
 
-## 8. Choose your council
+## 8. Build up a topic's memory
+
+Each topic keeps a memory of what the council concluded. Ask a second, related question on the same topic and the council starts from the first one:
+
+```bash
+conclave ask "What is the difference between a process and a thread?" --full --topic operating-systems
+conclave ask "When should I use processes instead of threads?" --full --topic operating-systems
+```
+
+The second run prints `Memory: recalled ...` near the end, and its `final.md` ends with "What changed in memory". Then look at the topic:
+
+```bash
+conclave topics                       # every topic, with runs, claims and open disputes
+conclave show operating-systems       # the claims, open disputes, your notes and recent runs
+```
+
+Add your own knowledge with a note. Notes are read first and take precedence over the council's conclusions:
+
+```bash
+conclave note operating-systems "Our services run on Linux containers, 2 vCPUs each."
+```
+
+Other useful commands:
+
+| Command | What it does |
+| --- | --- |
+| `conclave search "context switch"` | Searches every question, answer, final page, summary and note |
+| `conclave leaderboard` | Which models the others ranked highest across your full runs |
+| `conclave ask "..." --full --review` | Shows the proposed memory changes and asks before saving them |
+| `conclave ask "..." --fresh` | Ignores the topic's memory for one run and leaves it unchanged |
+
+How the memory is kept honest:
+
+- Only full runs change it; quick runs read it.
+- A claim enters only if the members agreed on it. Points only one model made are not stored, and contested points become disputes.
+- Nothing is deleted. A claim that turns out wrong is retired with a reason and stays visible in `summary.md`.
+- Do not edit `summary.md` or `disputes.md` by hand: they are rewritten from `memory.json` after every full run. Use a note instead.
+
+**Keep a history of the memory with Git (optional).** Make the research store a Git repository and every run and note is committed automatically, so you can see and undo any change:
+
+```bash
+cd ~/conclave-research
+git init
+```
+
+On Windows PowerShell the folder is `$HOME\conclave-research`. Keep this repository private; it holds your research.
+
+## 9. Choose your council
 
 List the models you can use, with live prices:
 
@@ -203,7 +250,7 @@ To try a set of models once without saving a profile:
 conclave ask "your question" --members google/gemini-3.8-flash,openai/gpt-6.1-sol
 ```
 
-## 9. Where your files are kept
+## 10. Where your files are kept
 
 | What | Default location | How to change it |
 | --- | --- | --- |
@@ -221,19 +268,19 @@ conclave init --store /path/to/my-research
 
 Keep the research store **outside** the Conclave code folder. Your research is private; the code repository is public.
 
-**What leaves your machine.** The store and everything in it stay on your disk. When you ask a question, the question is sent to OpenRouter and on to the model vendors you chose. Nothing else is sent.
+**What leaves your machine.** The store and everything in it stay on your disk. When you ask a question, the question and the topic's recalled memory (its claims, open disputes and your notes) are sent to OpenRouter and on to the model vendors you chose. Nothing else is sent. Use `--fresh` to send the question alone.
 
-## 10. Change the settings
+## 11. Change the settings
 
 Open the config file in any text editor. It is commented throughout. The parts you are most likely to change:
 
 - **`[budget]`**: the spending caps per full run, per quick run and per month, in US dollars.
-- **`[run]`**: which profile and which mode are used when you do not say, and `max_answer_tokens`, the longest answer a model may give. Lower it to cut cost.
+- **`[run]`**: which profile and which mode are used when you do not say, `max_answer_tokens`, the longest answer a model may give (lower it to cut cost), and `reasoning`, how hard reasoning models think before answering (`none`, `minimal`, `low`, `medium` or `high`; default `low`). Thinking is billed as output, and every call gets 2,048 tokens of room for it on top of the answer.
 - **`[profiles.<name>]`**: who sits on the council.
 
 After editing, run `conclave config`. It either shows the new settings or tells you exactly which value is wrong.
 
-## 11. Run the tests
+## 12. Run the tests
 
 To check that the code works on your machine, install the development tools and run the three checks that CI runs:
 
@@ -246,7 +293,7 @@ pytest
 
 All tests should pass. They use a simulated OpenRouter, so they need no key, cost nothing and work offline.
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 | Problem | Likely cause | Fix |
 | --- | --- | --- |
@@ -261,14 +308,17 @@ All tests should pass. They use a simulated OpenRouter, so they need no key, cos
 | `This run could cost up to ...` | The worst-case cost is above your cap | Lower `max_answer_tokens`, choose cheaper models, or raise the cap in `[budget]` |
 | `full runs are paused` | This month's recorded spending reached the monthly cap | Raise `monthly_usd` in `[budget]`. Quick runs still work |
 | `Rate limited` on one member | That model's provider is busy | Run again shortly. The other members' answers were saved |
+| `CUT OFF` beside a model, or `Cut off at the length limit` | The model reached its length limit, so that text ends early. The other models are told | Raise `max_answer_tokens`, or set `reasoning` lower in `[run]` |
 | `Stopped before the critique stage` (or synthesis) | That stage could have taken the run over its cap | The earlier stages are saved. Raise `full_run_usd` in `[budget]`, or lower `max_answer_tokens` |
 | A review's ranking `left out rather than guessed` | The model did not write its ranking in the expected form | Nothing to fix; that one ranking is left out of the averages. If it happens often with one model, choose another |
+| `... memory.json could not be read` | The topic's memory file was damaged, for example by a hand edit | Restore it from the store's Git history, or move it aside to start that topic's memory again. The runs are not affected |
+| A note or claim you expected is missing from the answer | The recalled memory is cut at about 12,000 characters | `conclave show <topic>` lists everything kept. Split a large topic into narrower ones |
 | `Config problem: ...` | A value in the config file is invalid | The message names the setting and what it must be. Fix that line and run `conclave config` again |
 | You want to start over with the default config | | Rename or delete the config file, then run `conclave init`. Your research store is not touched |
 
 If something else goes wrong, open an issue with the command you ran, the full output, your operating system and your Python version. Remove your API key from anything you paste.
 
-## 13. Update or remove
+## 14. Update or remove
 
 **Update to the latest code**
 

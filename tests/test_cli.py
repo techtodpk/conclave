@@ -48,7 +48,7 @@ def test_config_shows_caps_and_profiles(tmp_path):
     assert result.exit_code == 0, result.output
     assert "using built-in defaults" in result.output
     assert "Full run:    0.75" in result.output
-    assert "Quick run:   0.05" in result.output
+    assert "Quick run:   0.10" in result.output
     assert "Month:       15.00" in result.output
     assert "Profile 'balanced' (default)" in result.output
     assert "Warning" not in result.output

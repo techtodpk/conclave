@@ -38,7 +38,7 @@ def test_packaged_defaults_are_valid():
     assert config.default_profile == "balanced"
     assert config.default_mode == "quick"
     assert config.budget.full_run_usd == 0.75
-    assert config.budget.quick_run_usd == 0.05
+    assert config.budget.quick_run_usd == 0.10
     assert config.budget.monthly_usd == 15.0
 
 
@@ -144,3 +144,13 @@ def test_budget_cap_depends_on_the_mode():
 
     assert budget.cap_for("full") == 0.75
     assert budget.cap_for("quick") == 0.05
+
+
+def test_reasoning_defaults_to_low_and_is_validated():
+    assert parse_config(MINIMAL).reasoning == "low"
+    assert parse_config(default_config_text()).reasoning == "low"
+    text = MINIMAL.replace("claims_checked = 5", 'claims_checked = 5\nreasoning = "none"')
+    assert parse_config(text).reasoning == "none"
+
+    with pytest.raises(ConfigError, match="run.reasoning must be one of"):
+        parse_config(MINIMAL.replace("claims_checked = 5", 'claims_checked = 5\nreasoning = "max"'))

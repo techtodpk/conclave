@@ -77,8 +77,18 @@ def load_prompt(name: str) -> str:
     return prompt.read_text(encoding="utf-8").strip()
 
 
-def _header(question: str, today: date) -> str:
-    return f"Today's date: {today.isoformat()}\n\nQuestion: {question}"
+def _header(question: str, today: date, recall: str = "") -> str:
+    head = f"Today's date: {today.isoformat()}\n\n"
+    if recall:
+        head += (
+            "## Earlier research on this topic\n\n"
+            "Earlier runs of this council reached the conclusions below. Treat them as prior "
+            "findings, not established facts: build on them, and say plainly where your answer "
+            "confirms, corrects or contradicts one, citing its id (C1, D1). The user's notes "
+            "take precedence over earlier conclusions.\n\n"
+            f"{recall}\n\n## The question\n\n"
+        )
+    return head + f"Question: {question}"
 
 
 def _responses(answers: list[Labeled]) -> str:
@@ -101,26 +111,39 @@ async def ask_one(
 # --- Research -------------------------------------------------------------------
 
 
-def research_messages(question: str, today: date) -> list[dict[str, str]]:
+def research_messages(question: str, today: date, recall: str = "") -> list[dict[str, str]]:
     return [
         {"role": "system", "content": load_prompt("research")},
-        {"role": "user", "content": _header(question, today)},
+        {"role": "user", "content": _header(question, today, recall)},
     ]
 
 
 async def research(
-    client: ModelClient, seats: list[Seat], question: str, max_tokens: int, today: date
+    client: ModelClient,
+    seats: list[Seat],
+    question: str,
+    max_tokens: int,
+    today: date,
+    recall: str = "",
 ) -> list[SeatResult]:
     """Ask every seat the question at the same time."""
-    messages = research_messages(question, today)
+    messages = research_messages(question, today, recall)
     return list(await asyncio.gather(*(ask_one(client, s, messages, max_tokens) for s in seats)))
+
+
+CUT_OFF_NOTE = "\n\n[This text was cut off at the length limit, so it ends early.]"
+
+
+def shown_text(completion: Completion) -> str:
+    """What other models are shown: the text, marked if it was cut off at the length limit."""
+    return completion.text + (CUT_OFF_NOTE if completion.cut_off else "")
 
 
 def label_answers(results: list[SeatResult]) -> list[Labeled]:
     """Give each successful answer a hidden name, in seat order."""
     answered = [r for r in results if r.completion is not None]
     return [
-        Labeled(letter, r.seat.member.model, r.completion.text)  # type: ignore[union-attr]
+        Labeled(letter, r.seat.member.model, shown_text(r.completion))  # type: ignore[arg-type]
         for letter, r in zip(LETTERS, answered, strict=False)
     ]
 
@@ -225,10 +248,11 @@ def synthesis_messages(
     answers: list[Labeled],
     reviews: list[Review],
     table: list[Standing],
+    recall: str = "",
 ) -> list[dict[str, str]]:
     readable = [r for r in reviews if r.ok]
     review_text = "\n\n".join(
-        f"### Review {number}\n\n{r.result.completion.text}"  # type: ignore[union-attr]
+        f"### Review {number}\n\n{shown_text(r.result.completion)}"  # type: ignore[arg-type]
         for number, r in enumerate(readable, start=1)
     )
     ranked = [s for s in table if s.average_position is not None]
@@ -238,7 +262,7 @@ def synthesis_messages(
         else "No readable rankings."
     )
     user = (
-        f"{_header(question, today)}\n\n"
+        f"{_header(question, today, recall)}\n\n"
         f"## The members' answers\n\n{_responses(answers)}\n\n"
         f"## The members' reviews of each other\n\n{review_text or 'No reviews were returned.'}\n\n"
         f"## Peer ranking\n\nAverage position, lower is better: {ranking_line}"
@@ -284,3 +308,17 @@ def final_page(
         f"{rows}\n\n"
         f"Readable rankings: {readable} of {len(reviews)}.\n"
     )
+
+
+# --- Memory update ----------------------------------------------------------------
+
+
+def memory_messages(topic: str, listing: str, answer: str, today: date) -> list[dict[str, str]]:
+    user = (
+        f"Today's date: {today.isoformat()}\n\nTopic: {topic}\n\n{listing}\n\n"
+        f"## The new run's final answer\n\n{answer}"
+    )
+    return [
+        {"role": "system", "content": load_prompt("memory")},
+        {"role": "user", "content": user},
+    ]

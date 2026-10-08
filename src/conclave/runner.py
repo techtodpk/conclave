@@ -2,21 +2,26 @@
 
 from __future__ import annotations
 
+import copy
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from conclave import __version__
 from conclave.budget import (
+    MEMORY_MAX_TOKENS,
     cost_of,
     critique_max_tokens,
+    estimate_tokens,
     full_run_worst_case,
     messages_tokens,
     synthesis_max_tokens,
     worst_case_cost,
 )
 from conclave.catalog import CatalogError, ModelInfo, closest, fetch_models
-from conclave.client import OpenRouterClient
+from conclave.client import KeyStatus, OpenRouterClient, key_status
 from conclave.config import Config, Member
 from conclave.council import (
     Labeled,
@@ -29,15 +34,30 @@ from conclave.council import (
     critique_messages,
     final_page,
     label_answers,
+    memory_messages,
     research,
     research_messages,
     standings,
     synthesis_messages,
 )
+from conclave.gitstore import commit
 from conclave.http import new_client
+from conclave.memory import (
+    Changes,
+    Recall,
+    TopicMemory,
+    apply_patch,
+    build_recall,
+    load_memory,
+    memory_listing,
+    parse_patch,
+    save_memory,
+)
 from conclave.store import (
+    DEFAULT_TOPIC,
     Run,
     create_run,
+    slugify,
     write_answer,
     write_final,
     write_json,
@@ -45,6 +65,9 @@ from conclave.store import (
     write_question,
     write_review,
 )
+
+# Asked before memory changes are saved, when the user wants to approve them.
+Approve = Callable[[Changes], bool]
 
 
 class Refused(Exception):
@@ -65,7 +88,7 @@ def cap_text(amount: float) -> str:
 class Call:
     """One model call and what it cost."""
 
-    stage: str  # research, critique or synthesis
+    stage: str  # research, critique, synthesis or memory
     result: SeatResult
     cost: float | None = None
     cost_source: str = "unknown"
@@ -76,6 +99,7 @@ class Call:
 @dataclass
 class Outcome:
     mode: str
+    topic: str
     run: Run | None = None  # None when no model answered, so nothing was saved
     calls: list[Call] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
@@ -84,6 +108,9 @@ class Outcome:
     estimate: float | None = None
     final_text: str | None = None
     table: list[Standing] = field(default_factory=list)
+    recall: Recall | None = None
+    changes: Changes | None = None
+    key: KeyStatus | None = None
 
     @property
     def total_cost(self) -> float:
@@ -103,6 +130,21 @@ def check_ids(members: list[Member], catalog: dict[str, ModelInfo]) -> None:
         )
 
 
+@dataclass
+class _Context:
+    """What every stage of one run needs."""
+
+    question: str
+    settings: Config
+    started: datetime
+    profile_name: str
+    cap: float
+    catalog: dict[str, ModelInfo]
+    topic_dir: Path
+    memory: TopicMemory | None  # None when the run neither reads nor writes memory
+    recall_text: str
+
+
 async def run_question(
     question: str,
     seats: list[Seat],
@@ -113,13 +155,29 @@ async def run_question(
     mode: str,
     profile_name: str,
     started: datetime,
+    fresh: bool = False,
+    approve: Approve | None = None,
 ) -> Outcome:
-    """Run the stages for one question. `chairman` is set for full runs only."""
-    outcome = Outcome(mode=mode)
+    """Run the stages for one question. `chairman` is set for full runs only.
+
+    `fresh` skips the topic's memory entirely. `approve`, when given, is asked before
+    memory changes are saved.
+    """
+    topic_slug = slugify(topic, fallback=DEFAULT_TOPIC)
+    outcome = Outcome(mode=mode, topic=topic_slug)
     cap = settings.budget.cap_for(mode)
     answer_tokens = settings.max_answer_tokens
     today = started.date()
     members = [seat.member for seat in seats]
+    topic_dir = settings.store_path / "topics" / topic_slug
+
+    memory = None if fresh else load_memory(topic_dir, topic_slug)
+    recall_text = ""
+    if memory is not None:
+        outcome.recall = build_recall(topic_dir, memory)
+        recall_text = outcome.recall.text
+        if outcome.recall.truncated:
+            outcome.notes.append("The topic's memory was long, so the recall was cut short.")
 
     async with new_client() as http:
         catalog: dict[str, ModelInfo] = {}
@@ -130,14 +188,15 @@ async def run_question(
                 f"Prices unavailable, so the cost could not be checked in advance ({error})."
             )
 
-        research_tokens = messages_tokens(research_messages(question, today))
+        research_tokens = messages_tokens(research_messages(question, today, recall_text))
         if catalog:
             check_ids(members + ([chairman.member] if chairman else []), catalog)
             if chairman is None:
                 estimate = worst_case_cost(members, catalog, research_tokens, answer_tokens)
             else:
+                listing = None if memory is None else estimate_tokens(memory_listing(memory))
                 estimate = full_run_worst_case(
-                    members, chairman.member, catalog, research_tokens, answer_tokens
+                    members, chairman.member, catalog, research_tokens, answer_tokens, listing
                 )
             outcome.estimate = estimate
             if estimate > cap:
@@ -147,10 +206,23 @@ async def run_question(
                     "choose cheaper models, or raise the cap in the config file."
                 )
 
-        client = OpenRouterClient(http, api_key)
+        outcome.key = await key_status(http, api_key)
+        remaining = outcome.key.remaining if outcome.key else None
+        if remaining is not None and outcome.estimate is not None and outcome.estimate > remaining:
+            raise Refused(
+                f"Your OpenRouter key has {dollars(remaining)} left of its spending limit, and "
+                f"this run could cost up to {dollars(outcome.estimate)}. Nothing was sent. Add "
+                "credit or raise the key's limit at https://openrouter.ai/keys, or try a quick "
+                "run or cheaper models."
+            )
+
+        client = OpenRouterClient(http, api_key, reasoning=settings.reasoning)
+        context = _Context(
+            question, settings, started, profile_name, cap, catalog, topic_dir, memory, recall_text
+        )
 
         # Research
-        results = await research(client, seats, question, answer_tokens, today)
+        results = await research(client, seats, question, answer_tokens, today, recall_text)
         if not any(result.ok for result in results):
             outcome.calls = [Call("research", result) for result in results]
             return outcome
@@ -165,8 +237,17 @@ async def run_question(
                 "Topic": run.topic,
                 "Mode": mode,
                 "Profile": profile_name,
+                "Memory": "not used (--fresh)"
+                if fresh
+                else "read" + (" and updated" if chairman else ""),
             },
         )
+        if recall_text:
+            (run.path / "recall.md").write_text(
+                "# Earlier research given to the council\n\n" + recall_text + "\n",
+                encoding="utf-8",
+            )
+
         answers = label_answers(results) if chairman else []
         letters = iter(a.letter for a in answers)
         for result in results:
@@ -182,22 +263,12 @@ async def run_question(
         outcome.stages.append("research")
 
         if chairman is not None:
-            await _council(
-                outcome,
-                client,
-                run,
-                catalog,
-                question,
-                results,
-                answers,
-                chairman,
-                settings,
-                profile_name,
-                started,
-                cap,
-            )
+            body = await _council(outcome, client, run, context, results, answers, chairman)
+            if body is not None and memory is not None:
+                await _update_memory(outcome, client, run, context, chairman, body, approve)
 
     _save_meta(outcome, run, question, mode, profile_name, started, cap)
+    _commit(outcome, settings.store_path, run, topic_dir, question)
     return outcome
 
 
@@ -205,26 +276,22 @@ async def _council(
     outcome: Outcome,
     client: OpenRouterClient,
     run: Run,
-    catalog: dict[str, ModelInfo],
-    question: str,
+    context: _Context,
     results: list[SeatResult],
     answers: list[Labeled],
     chairman: Seat,
-    settings: Config,
-    profile_name: str,
-    started: datetime,
-    cap: float,
-) -> None:
-    """Critique and Synthesis, each checked against the budget before it starts."""
-    today = started.date()
-    answer_tokens = settings.max_answer_tokens
+) -> str | None:
+    """Critique and Synthesis. Returns the chairman's text, or None if there is no page."""
+    today = context.started.date()
+    answer_tokens = context.settings.max_answer_tokens
+    catalog, cap, question = context.catalog, context.cap, context.question
 
     if len(answers) < 2:
         outcome.notes.append(
             "Only one member answered, so there was nothing to compare. "
-            "Critique and the one-page answer were skipped."
+            "Critique, the one-page answer and the memory update were skipped."
         )
-        return
+        return None
 
     # Critique
     critics = [result.seat for result in results if result.ok]
@@ -233,11 +300,10 @@ async def _council(
         messages_tokens(critique_messages(question, today, [a for a in answers if a is not own]))
         for own in answers
     )
-    if _would_exceed(outcome, catalog, [s.member for s in critics], longest, review_tokens, cap):
-        _stop(
-            outcome, "critique", catalog, [s.member for s in critics], longest, review_tokens, cap
-        )
-        return
+    reviewers = [seat.member for seat in critics]
+    if _would_exceed(outcome, catalog, reviewers, longest, review_tokens, cap):
+        _stop(outcome, "critique", catalog, reviewers, longest, review_tokens, cap)
+        return None
 
     reviews = await critique(client, answers, critics, question, review_tokens, today)
     for review in reviews:
@@ -264,27 +330,27 @@ async def _council(
         )
 
     # Synthesis
-    messages = synthesis_messages(question, today, answers, reviews, table)
+    messages = synthesis_messages(question, today, answers, reviews, table, context.recall_text)
     page_tokens = synthesis_max_tokens(answer_tokens)
     prompt_tokens = messages_tokens(messages)
     if _would_exceed(outcome, catalog, [chairman.member], prompt_tokens, page_tokens, cap):
         _stop(outcome, "synthesis", catalog, [chairman.member], prompt_tokens, page_tokens, cap)
-        return
+        return None
 
     result = await ask_one(client, chairman, messages, page_tokens)
     outcome.calls.append(_record(Call("synthesis", result), catalog))
     if result.completion is None:
         outcome.notes.append(
             f"The chairman could not write the one-page answer ({result.error}). "
-            "The answers and reviews are saved."
+            "The answers and reviews are saved; the memory was not changed."
         )
-        return
+        return None
 
     text = final_page(
         question,
         result.completion.text,
-        started.strftime("%Y-%m-%d %H:%M"),
-        profile_name,
+        context.started.strftime("%Y-%m-%d %H:%M"),
+        context.profile_name,
         chairman.member.model,
         table,
         reviews,
@@ -293,6 +359,110 @@ async def _council(
     outcome.calls[-1].file = "final.md"
     outcome.final_text = text
     outcome.stages.append("synthesis")
+    return result.completion.text
+
+
+async def _update_memory(
+    outcome: Outcome,
+    client: OpenRouterClient,
+    run: Run,
+    context: _Context,
+    chairman: Seat,
+    body: str,
+    approve: Approve | None,
+) -> None:
+    """Ask the chairman for a memory patch, apply it under the rules, and record what changed."""
+    memory = context.memory
+    assert memory is not None
+    today = context.started.date()
+    messages = memory_messages(run.topic, memory_listing(memory), body, today)
+    prompt_tokens = messages_tokens(messages)
+    if _would_exceed(
+        outcome, context.catalog, [chairman.member], prompt_tokens, MEMORY_MAX_TOKENS, context.cap
+    ):
+        _stop(
+            outcome,
+            "memory update",
+            context.catalog,
+            [chairman.member],
+            prompt_tokens,
+            MEMORY_MAX_TOKENS,
+            context.cap,
+        )
+        _append_memory_section(outcome, run, ["The memory was not changed: the run hit its cap."])
+        return
+
+    result = await ask_one(client, chairman, messages, MEMORY_MAX_TOKENS)
+    outcome.calls.append(_record(Call("memory", result), context.catalog))
+    if result.completion is None:
+        outcome.notes.append(f"The memory update failed ({result.error}); the memory is unchanged.")
+        _append_memory_section(outcome, run, ["The memory was not changed: the update failed."])
+        return
+
+    patch = None if result.completion.cut_off else parse_patch(result.completion.text)
+    if patch is None:
+        (run.path / "memory_reply.md").write_text(result.completion.text + "\n", encoding="utf-8")
+        why = (
+            "was cut off at the length limit"
+            if result.completion.cut_off
+            else "was not in the expected form"
+        )
+        outcome.notes.append(
+            f"The memory update reply {why}, so the memory is unchanged. "
+            "The reply is saved as memory_reply.md."
+        )
+        _append_memory_section(
+            outcome, run, ["The memory was not changed: the reply was unreadable."]
+        )
+        return
+
+    proposed = copy.deepcopy(memory)
+    changes = apply_patch(proposed, patch, run.path.name, today)
+    record: dict[str, Any] = {
+        "proposed": patch,
+        "applied": changes.lines(),
+        "skipped": changes.skipped,
+        "approved": None,
+    }
+
+    if not changes.empty and approve is not None:
+        record["approved"] = approve(changes)
+        if not record["approved"]:
+            write_json(run, "memory_patch.json", record)
+            outcome.notes.append("You declined the memory changes, so the memory is unchanged.")
+            _append_memory_section(
+                outcome, run, ["Proposed changes were declined; none were saved."]
+            )
+            return
+
+    write_json(run, "memory_patch.json", record)
+    outcome.changes = changes
+    if not changes.empty:
+        save_memory(context.topic_dir, proposed)
+        context.memory = proposed
+    outcome.stages.append("memory")
+    _append_memory_section(outcome, run, changes.lines() or ["No changes."])
+
+
+def _append_memory_section(outcome: Outcome, run: Run, lines: list[str]) -> None:
+    if outcome.final_text is None:
+        return
+    section = "\n## What changed in memory\n\n" + "\n".join(lines) + "\n"
+    outcome.final_text = outcome.final_text.rstrip("\n") + "\n" + section
+    write_final(run, outcome.final_text)
+
+
+def _commit(outcome: Outcome, store: Path, run: Run, topic_dir: Path, question: str) -> None:
+    paths = [run.path] + [
+        topic_dir / name
+        for name in ("memory.json", "summary.md", "disputes.md", "notes.md")
+        if (topic_dir / name).exists()
+    ]
+    short = " ".join(question.split())
+    message = f"conclave: {short[:68]}{'...' if len(short) > 68 else ''}"
+    problem = commit(store, paths, message)
+    if problem:
+        outcome.notes.append(problem)
 
 
 def _record(call: Call, catalog: dict[str, ModelInfo]) -> Call:
@@ -367,6 +537,17 @@ def _save_meta(
     started: datetime,
     cap: float,
 ) -> None:
+    cut = [
+        f"{call.stage} by {call.result.seat.member.model}"
+        for call in outcome.calls
+        if call.result.completion is not None and call.result.completion.cut_off
+    ]
+    if cut:
+        outcome.notes.append(
+            "Cut off at the length limit, so incomplete: "
+            + "; ".join(cut)
+            + ". Other models were told. Raise run.max_answer_tokens if this keeps happening."
+        )
     calls: list[dict[str, Any]] = []
     for call in outcome.calls:
         record: dict[str, Any] = {
@@ -387,11 +568,14 @@ def _save_meta(
                 completion_tokens=done.completion_tokens,
                 cost_usd=call.cost,
                 cost_source=call.cost_source,
+                reasoning_tokens=done.reasoning_tokens,
+                cut_off=done.cut_off,
                 seconds=round(done.seconds, 2),
                 file=call.file,
             )
         calls.append(record)
 
+    recall = outcome.recall
     write_meta(
         run,
         {
@@ -403,6 +587,15 @@ def _save_meta(
             "stages": outcome.stages,
             "stopped": outcome.stopped,
             "notes": outcome.notes,
+            "recall": None
+            if recall is None
+            else {
+                "claims": recall.claims,
+                "disputes": recall.disputes,
+                "notes": recall.has_notes,
+                "truncated": recall.truncated,
+            },
+            "memory_changes": None if outcome.changes is None else outcome.changes.lines(),
             "started": started.isoformat(timespec="seconds"),
             "finished": datetime.now().astimezone().isoformat(timespec="seconds"),
             "calls": calls,

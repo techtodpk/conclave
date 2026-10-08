@@ -1,7 +1,7 @@
 """The local research store: plain files on the user's own disk.
 
-Milestone 2 saves each question as a run folder under its topic. Topic
-summaries, disputes and the search index arrive in milestone 4.
+Each question is saved as a run folder under its topic. The topic's memory
+(claims, disputes and notes) lives beside the runs; see memory.py.
 """
 
 from __future__ import annotations
@@ -31,11 +31,15 @@ Layout (filled in as you use Conclave):
 
     topics/
       <topic>/
-        summary.md     current best answer for the topic, one claim per line
+        summary.md     what the council has concluded, one claim per line
         disputes.md    disagreements, each marked open or resolved
-        sources.md     every link used, date fetched, check verdict
-        notes.md       your own notes; the council reads these too
+        memory.json    the record summary.md and disputes.md are written from
+        notes.md       your own notes; the council reads these first
         runs/          one folder per question, never edited afterwards
+    index.sqlite       search index, rebuilt from the files whenever needed
+
+summary.md and disputes.md are rewritten after every full run. To correct the
+council, add a note (conclave note <topic> "...") rather than editing them.
 """
 
 

@@ -13,10 +13,12 @@ Three caps, set in the config, in US dollars:
 | Cap | Default | When it is reached |
 | --- | --- | --- |
 | Full run | 0.75 | The run stops before the next stage and saves what it has |
-| Quick run | 0.05 | Same |
+| Quick run | 0.10 (0.05 before milestone 4) | Same |
 | Month | 15.00 | New full runs are refused until the cap is raised; quick runs still work |
 
 The full-run default is about twice the design-time estimate for a full run on the API alone, so normal runs pass and a runaway one is stopped.
+
+In milestone 4 the quick-run default rose from 0.05 to 0.10. Every call now reserves room for the model's hidden reasoning, and the worst case for a quick run with an Opus chairman (the `full` profile) came to about $0.08.
 
 ## Consequences
 

@@ -3,7 +3,8 @@ import json
 from typer.testing import CliRunner
 
 from conclave.cli import app
-from conftest import KEY, answer, failure
+from conclave.client import REASONING_ALLOWANCE
+from conftest import KEY, answer, failure, stage_of
 
 runner = CliRunner()
 
@@ -41,6 +42,7 @@ def test_full_run_answers_reviews_and_sums_up(workspace, openrouter):
     assert sorted(openrouter.asked_in("research")) == sorted(BALANCED)
     assert sorted(openrouter.asked_in("critique")) == sorted(BALANCED)
     assert openrouter.asked_in("synthesis") == ["anthropic/claude-sonnet-5.5"]
+    assert openrouter.asked_in("memory") == ["anthropic/claude-sonnet-5.5"]
 
     (run,) = workspace.runs("unity")
     assert run.name.endswith("is-unity-dots-ready-for-production")
@@ -70,19 +72,19 @@ def test_full_run_answers_reviews_and_sums_up(workspace, openrouter):
     meta = _meta(run)
     assert meta["mode"] == "full"
     assert meta["topic"] == "unity"
-    assert meta["stages"] == ["research", "critique", "synthesis"]
+    assert meta["stages"] == ["research", "critique", "synthesis", "memory"]
     assert meta["stopped"] is None
     assert [c["stage"] for c in meta["calls"]].count("critique") == 3
     assert meta["totals"]["answers"] == 3
     assert meta["totals"]["failures"] == 0
-    assert meta["totals"]["cost_usd"] == 3 * 0.004 + 3 * 0.002 + 0.006
+    assert meta["totals"]["cost_usd"] == round(3 * 0.004 + 3 * 0.002 + 0.006 + 0.003, 6)
     assert 0 < meta["budget"]["worst_case_estimate_usd"] < 0.75
 
     assert result.output.startswith("# Is Unity DOTS ready for production?")
     assert "Asked 3 members (profile 'balanced', topic 'unity')" in result.output
-    for title in ("Research", "Critique", "Synthesis"):
+    for title in ("Research", "Critique", "Synthesis", "Memory update"):
         assert f"\n{title}\n" in result.output
-    assert "$0.0240 of the $0.75 cap for full runs" in result.output
+    assert "$0.0270 of the $0.75 cap for full runs" in result.output
     assert "final.md" in result.output
 
 
@@ -158,6 +160,8 @@ def test_chairman_failure_keeps_answers_and_reviews(workspace, openrouter):
     assert len(list((run / "critiques").iterdir())) == 3
     meta = _meta(run)
     assert meta["stages"] == ["research", "critique"]
+    assert openrouter.asked_in("memory") == []
+    assert not (workspace.store / "topics" / "general" / "memory.json").exists()
     assert "could not write the one-page answer" in result.output
 
 
@@ -203,7 +207,8 @@ def test_the_question_and_date_reach_the_model(workspace, openrouter):
     _ask(workspace, "Why is the sky blue?")
 
     body = openrouter.chat_requests[0]
-    assert body["max_tokens"] == 1500
+    assert body["max_tokens"] == 1500 + REASONING_ALLOWANCE
+    assert body["reasoning"] == {"effort": "low"}
     assert body["messages"][0]["role"] == "system"
     assert "## Key claims" in body["messages"][0]["content"]
     assert "Question: Why is the sky blue?" in body["messages"][1]["content"]
@@ -227,7 +232,7 @@ def test_quick_run_asks_only_the_chairman_and_prints_the_answer(workspace, openr
     assert meta["mode"] == "quick"
     assert meta["stages"] == ["research"]
     assert meta["calls"][0]["role"] == "chairman"
-    assert meta["budget"]["cap_usd"] == 0.05
+    assert meta["budget"]["cap_usd"] == 0.10
     assert not (run / "final.md").exists()
     sonnet = (run / "answers" / "anthropic--claude-sonnet-5.5.md").read_text(encoding="utf-8")
     assert "response:" not in sonnet
@@ -250,7 +255,7 @@ def test_one_failure_does_not_lose_the_other_answers(workspace, openrouter):
     assert (run / "final.md").exists()
     failed = next(call for call in meta["calls"] if call["status"] == "error")
     assert failed["model"] == "openai/gpt-6.1-sol"
-    assert "out of credit" in failed["error"]
+    assert "lack of credit" in failed["error"]
     assert "FAILED" in result.output
 
 
@@ -330,7 +335,7 @@ def test_monthly_cap_pauses_full_runs_but_not_quick_ones(workspace, openrouter):
     _init(workspace)
     workspace.set_key()
     _edit_config(workspace, "monthly_usd = 15.00", "monthly_usd = 0.01")
-    assert _ask(workspace, "First question", "--full").exit_code == 0  # costs 0.024
+    assert _ask(workspace, "First question", "--full").exit_code == 0  # costs 0.027
 
     blocked = _ask(workspace, "Second question", "--full")
     allowed = _ask(workspace, "Third question", "--quick")
@@ -375,8 +380,8 @@ def test_run_continues_when_prices_are_unavailable(workspace, openrouter):
     (run,) = workspace.runs()
     meta = _meta(run)
     assert meta["budget"]["worst_case_estimate_usd"] is None
-    assert meta["stages"] == ["research", "critique", "synthesis"]
-    assert meta["totals"]["cost_usd"] == 0.024
+    assert meta["stages"] == ["research", "critique", "synthesis", "memory"]
+    assert meta["totals"]["cost_usd"] == 0.027
 
 
 def test_cost_is_estimated_from_prices_when_not_reported(workspace, openrouter):
@@ -439,3 +444,80 @@ def test_ask_works_before_init_using_the_defaults(workspace, openrouter, monkeyp
 
     assert result.exit_code == 0, result.output
     assert (tmp_path / "home" / "conclave-research" / "topics" / "general" / "runs").is_dir()
+
+
+def test_run_is_refused_when_the_key_cannot_afford_it(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+    openrouter.key_limit = 1.0
+    openrouter.key_remaining = 0.013
+
+    result = _ask(workspace, "A question", "--full")
+
+    assert result.exit_code == 1
+    assert "Your OpenRouter key has $0.0130 left" in result.output
+    assert "Nothing was sent" in result.output
+    assert openrouter.chat_requests == []
+    assert workspace.runs() == []
+
+
+def test_key_balance_is_shown_after_a_run(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+    openrouter.key_limit = 5.0
+    openrouter.key_remaining = 2.0
+
+    result = _ask(workspace, "A question")
+
+    assert result.exit_code == 0, result.output
+    assert "OpenRouter key: about $2.00 left of its $5.00 limit." in result.output
+
+
+def test_unlimited_key_or_unknown_balance_does_not_block(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+    openrouter.key_status = 500
+
+    result = _ask(workspace, "A question")
+
+    assert result.exit_code == 0, result.output
+    assert "OpenRouter key:" not in result.output
+
+
+def test_lack_of_credit_message_names_the_key_limit(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+    openrouter.reply("anthropic/claude-sonnet-5.5", failure(402, "can only afford 1349"))
+
+    result = _ask(workspace, "A question")
+
+    assert "the account balance or this key's spending limit is too low" in result.output
+
+
+def test_cut_off_answer_is_reported_marked_for_reviewers_and_recorded(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+    openrouter.reply(
+        "openai/gpt-6.1-sol",
+        answer("## Answer\n\nStarts well but", finish_reason="length", reasoning_tokens=900),
+        stage="research",
+    )
+
+    result = _ask(workspace, "Q?", "--full")
+
+    assert result.exit_code == 0, result.output
+    assert "CUT OFF" in result.output
+    assert "Cut off at the length limit, so incomplete: research by openai/gpt-6.1-sol" in (
+        result.output
+    )
+    reviews = [
+        body["messages"][-1]["content"]
+        for body in openrouter.chat_requests
+        if stage_of(body) == "critique" and body["model"] != "openai/gpt-6.1-sol"
+    ]
+    assert reviews and all("cut off at the length limit" in text for text in reviews)
+    (meta_path,) = workspace.store.glob("topics/*/runs/*/meta.json")
+    calls = json.loads(meta_path.read_text(encoding="utf-8"))["calls"]
+    gpt = next(c for c in calls if c["stage"] == "research" and c["model"] == "openai/gpt-6.1-sol")
+    assert gpt["cut_off"] is True
+    assert gpt["reasoning_tokens"] == 900

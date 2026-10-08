@@ -2,6 +2,29 @@
 
 Each milestone on the [roadmap](README.md#roadmap) is tagged in Git when it is complete. Work in progress and pending tasks are tracked in [project status](docs/STATUS.md).
 
+## Milestone 4: store and recall (2026-10-08)
+
+Tag: `milestone-4`. Version 0.4.0.
+
+- Each topic keeps a memory: the claims the council concluded, open disputes, and your own notes. It is read before every question on the topic, quick or full, and given to the members and the chairman.
+- After a full run the chairman proposes changes to the memory, and code applies them under fixed rules: a claim is added only if the members agreed on it; "single model" and "disputed" points never enter as claims, and disputed ones become disputes; a claim is changed or retired only with a reason; nothing is deleted; claim and dispute ids are never reused.
+- `final.md` ends with "What changed in memory". `memory_patch.json` records what was proposed, applied and refused, and `recall.md` what the council was given.
+- `--review` shows the proposed changes and asks before saving them. `--fresh` ignores the memory for one run and leaves it unchanged.
+- `memory.json` is the record; `summary.md` and `disputes.md` are written from it. `notes.md` is yours and only ever appended to.
+- If the research store is a Git repository, every run and note is committed.
+- New commands: `conclave topics`, `conclave show <topic>`, `conclave note <topic> "..."`, `conclave search "..."` and `conclave leaderboard`.
+- Search uses a SQLite full-text index, rebuilt from the files whenever they change; it is never the source of anything.
+- The leaderboard scales each place from 0 (ranked best) to 1 (ranked worst), so councils of different sizes can be compared.
+- The pre-run budget check now includes the memory update.
+- Before each run, Conclave asks OpenRouter how much credit the key has left, and refuses the run if its worst-case cost is higher, so nothing is sent that the key cannot pay for. A key with no limit, or a balance that cannot be read, does not block the run. After a run the key's remaining balance is printed.
+- A clearer message when OpenRouter refuses a call for lack of credit (HTTP 402), pointing to the key's limit.
+- `show` and `topics` read each run's mode from `meta.json`, so a full run that stopped early is no longer listed as quick.
+- Answers are no longer cut short by hidden reasoning. Reasoning models think before they answer, and that thinking counts against the length limit: in the first live runs Claude Sonnet and Gemini used more than half of it thinking, so answers, a review and the memory update ended mid-sentence. Every call now gets 2,048 tokens of room for reasoning on top of the answer, and a new setting, `run.reasoning` (default `low`), sets how hard models think.
+- A text that still reaches the length limit is marked `CUT OFF` in the report and `cut_off` in `meta.json`, which also records reasoning tokens. Reviewers and the chairman are told which texts were cut off, and a memory update that was cut off is never applied.
+- The pre-run cost ceiling now includes the reasoning room, and the default quick-run cap rose from $0.05 to $0.10 so a quick run with the `full` profile's Opus chairman still fits. An existing config file keeps its own caps.
+- Fixed before release: on Windows, rebuilding the search index failed because a database connection was left open. Every connection is now closed explicitly, and a test fails if one is left open.
+- Checked against the live OpenRouter API on Windows: two related full runs on one topic. The first ($0.097) stored 6 claims and 3 disputes. The second ($0.090) recalled them, added 3 claims, refined 1 and resolved 2 disputes. No text was cut off.
+
 ## Milestone 3: critique and chairman (2026-10-08)
 
 Tag: `milestone-3`. Version 0.3.0.

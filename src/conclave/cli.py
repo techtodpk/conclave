@@ -10,7 +10,7 @@ from typing import Annotated
 
 import typer
 
-from conclave import __version__
+from conclave import __version__, library
 from conclave.catalog import CatalogError, ModelInfo, fetch_models, search
 from conclave.config import (
     MIN_MEMBERS,
@@ -23,8 +23,10 @@ from conclave.config import (
     parse_member,
 )
 from conclave.council import Seat
+from conclave.gitstore import commit
 from conclave.http import new_client
 from conclave.keys import MissingKeyError, load_api_key
+from conclave.memory import Changes, MemoryFileError, add_note, load_memory, read_notes
 from conclave.runner import Outcome, Refused, cap_text, check_ids, dollars, run_question
 from conclave.store import DEFAULT_TOPIC, init_store, month_spend, slugify
 
@@ -146,6 +148,7 @@ def show_config(config: ConfigOption = None) -> None:
     typer.echo(f"Store:         {settings.store_path} ({store_state})")
     typer.echo(f"Default run:   {settings.default_mode} mode, '{settings.default_profile}' profile")
     typer.echo(f"Longest answer: {settings.max_answer_tokens} tokens")
+    typer.echo(f"Reasoning:     {settings.reasoning}")
     typer.echo(f"Claims checked per full run: {settings.claims_checked}")
     typer.echo("")
     typer.echo("Budget caps (USD)")
@@ -343,6 +346,14 @@ def ask(
         ),
     ] = False,
     quick: Annotated[bool, typer.Option("--quick", help="Ask the chairman only.")] = False,
+    fresh: Annotated[
+        bool,
+        typer.Option("--fresh", help="Ignore the topic's memory, and leave it unchanged."),
+    ] = False,
+    review: Annotated[
+        bool,
+        typer.Option("--review", help="Show the memory changes and ask before saving them."),
+    ] = False,
     config: ConfigOption = None,
 ) -> None:
     """Ask the council a question and save the run to your research store."""
@@ -357,6 +368,8 @@ def ask(
             raise Stop("Choose one of --full and --quick, not both.")
         if members and quick:
             raise Stop("--members asks several models, so it cannot be combined with --quick.")
+        if fresh and review:
+            raise Stop("--fresh leaves the memory unchanged, so there is nothing to --review.")
         mode = "full" if full or members else "quick" if quick else settings.default_mode
 
         try:
@@ -416,19 +429,36 @@ def ask(
                     mode,
                     chosen.name,
                     started,
+                    fresh=fresh,
+                    approve=_confirm_changes if review else None,
                 )
             )
         except Refused as refused:
             raise Stop(str(refused)) from None
+        except MemoryFileError as error:
+            raise Stop(str(error)) from None
     except Stop as stop:
         raise _fail(str(stop)) from None
 
-    _report(outcome, settings, chosen.name, slugify(topic, fallback=DEFAULT_TOPIC), spent)
+    _report(outcome, settings, chosen.name, outcome.topic, spent)
     if outcome.run is None:
         raise typer.Exit(code=1)
 
 
-STAGE_TITLES = {"research": "Research", "critique": "Critique", "synthesis": "Synthesis"}
+def _confirm_changes(changes: Changes) -> bool:
+    typer.echo("")
+    typer.echo("Proposed changes to the topic's memory:")
+    for line in changes.lines():
+        typer.echo(f"  {line}")
+    return typer.confirm("Save these changes?", default=True)
+
+
+STAGE_TITLES = {
+    "research": "Research",
+    "critique": "Critique",
+    "synthesis": "Synthesis",
+    "memory": "Memory update",
+}
 
 
 def _report(
@@ -451,9 +481,22 @@ def _report(
     research_calls = [c for c in outcome.calls if c.stage == "research"]
     who = "the chairman" if mode == "quick" else f"{len(research_calls)} members"
     typer.echo(f"Asked {who} (profile '{profile_name}', topic '{topic}')")
+    recall = outcome.recall
+    if recall is None:
+        typer.echo("Memory: not used (--fresh).")
+    elif not recall.text:
+        typer.echo("Memory: nothing on this topic yet.")
+    else:
+        parts = [
+            f"{recall.claims} {'claim' if recall.claims == 1 else 'claims'}",
+            f"{recall.disputes} open {'dispute' if recall.disputes == 1 else 'disputes'}",
+        ]
+        if recall.has_notes:
+            parts.append("your notes")
+        typer.echo(f"Memory: recalled {', '.join(parts)}.")
 
     width = max(len(c.result.seat.member.model) for c in outcome.calls)
-    for stage in ("research", "critique", "synthesis"):
+    for stage in ("research", "critique", "synthesis", "memory"):
         calls = [c for c in outcome.calls if c.stage == stage]
         if not calls:
             continue
@@ -469,8 +512,9 @@ def _report(
             price = "cost unknown" if call.cost is None else dollars(call.cost)
             if call.cost_source == "estimated":
                 price += " (estimated)"
+            state = "CUT OFF" if done.cut_off else "ok"
             typer.echo(
-                f"  {name}  ok  {done.prompt_tokens:>6} in  {done.completion_tokens:>6} out  "
+                f"  {name}  {state}  {done.prompt_tokens:>6} in  {done.completion_tokens:>6} out  "
                 f"{price}  {done.seconds:.1f}s"
             )
 
@@ -493,9 +537,154 @@ def _report(
         f"This month: {dollars(spent + outcome.total_cost)} of "
         f"{cap_text(settings.budget.monthly_usd)}."
     )
+    key = outcome.key
+    if key is not None and key.remaining is not None:
+        left = max(key.remaining - outcome.total_cost, 0.0)
+        typer.echo(
+            f"OpenRouter key: about {dollars(left)} left of its {dollars(key.limit or 0)} limit."
+        )
     typer.echo(f"Saved to: {outcome.run.path}")
     if outcome.final_text:
         typer.echo("The one-page answer is final.md; each answer and review is saved beside it.")
+    if outcome.changes is not None and not outcome.changes.empty:
+        typer.echo(f"Topic memory updated: see `conclave show {topic}`.")
+
+
+# --- reading the store ------------------------------------------------------------
+
+
+@app.command("topics")
+def list_topics(config: ConfigOption = None) -> None:
+    """List the topics in your research store."""
+    settings = _load(_config_path(config))
+    try:
+        found = library.topics(settings.store_path)
+    except MemoryFileError as error:
+        raise _fail(str(error)) from None
+    if not found:
+        typer.echo("No topics yet. Ask a question with --topic <name> to start one.")
+        return
+    width = max(len(t.name) for t in found)
+    header = f"{'Runs':>5}  {'Full':>5}  {'Claims':>6}  {'Disputes':>8}  Last run"
+    typer.echo(f"{'Topic'.ljust(width)}  {header}")
+    for t in found:
+        notes = "  (notes)" if t.has_notes else ""
+        typer.echo(
+            f"{t.name.ljust(width)}  {t.runs:>5}  {t.full_runs:>5}  {t.claims:>6}  "
+            f"{t.open_disputes:>8}  {t.last_run or '-'}{notes}"
+        )
+
+
+@app.command()
+def show(
+    topic: Annotated[str, typer.Argument(help="The topic to show.")],
+    config: ConfigOption = None,
+) -> None:
+    """Show what the council has concluded on a topic, its open disputes and recent runs."""
+    settings = _load(_config_path(config))
+    slug = slugify(topic, fallback=DEFAULT_TOPIC)
+    folder = settings.store_path / "topics" / slug
+    if not folder.is_dir():
+        raise _fail(f"No topic named '{slug}'. Run `conclave topics` to see them.")
+    try:
+        memory = load_memory(folder, slug)
+    except MemoryFileError as error:
+        raise _fail(str(error)) from None
+
+    typer.echo(f"Topic: {slug}  ({folder})")
+    typer.echo("")
+    typer.echo("Claims")
+    if not memory.active_claims:
+        typer.echo("  None yet. Full runs on this topic add them.")
+    for claim in memory.active_claims:
+        typer.echo(f"  {claim.id}  {claim.text} [{claim.label}]")
+    typer.echo("")
+    typer.echo("Open disputes")
+    if not memory.open_disputes:
+        typer.echo("  None.")
+    for dispute in memory.open_disputes:
+        typer.echo(f"  {dispute.id}  {dispute.text}")
+    notes = read_notes(folder)
+    typer.echo("")
+    typer.echo("Your notes" if notes else "Your notes: none. Add one with `conclave note`.")
+    if notes:
+        for line in notes.splitlines():
+            if line.startswith("- "):
+                typer.echo(f"  {line[2:]}")
+    runs = sorted((folder / "runs").glob("*")) if (folder / "runs").is_dir() else []
+    typer.echo("")
+    typer.echo(f"Runs: {len(runs)}" + (", most recent:" if runs else ""))
+    for run in runs[-5:][::-1]:
+        kind = library.run_mode(run)
+        if kind == "full" and not (run / "final.md").exists():
+            kind = "full, stopped before the one-page answer"
+        typer.echo(f"  {run.name}  ({kind})")
+
+
+@app.command()
+def note(
+    topic: Annotated[str, typer.Argument(help="The topic the note belongs to.")],
+    text: Annotated[str, typer.Argument(help="The note.")],
+    config: ConfigOption = None,
+) -> None:
+    """Add your own note to a topic. The council reads it first, before its own conclusions."""
+    if not text.strip():
+        raise _fail("The note is empty.")
+    settings = _load(_config_path(config))
+    slug = slugify(topic, fallback=DEFAULT_TOPIC)
+    folder = settings.store_path / "topics" / slug
+    path = add_note(folder, slug, text, datetime.now().astimezone().date())
+    problem = commit(settings.store_path, [path], f"conclave: note on {slug}")
+    typer.echo(f"Added to {path}")
+    if problem:
+        typer.echo(problem)
+
+
+@app.command("search")
+def search_store(
+    query: Annotated[str, typer.Argument(help="Words to look for.")],
+    topic: Annotated[
+        str | None, typer.Option("--topic", "-t", help="Only search this topic.")
+    ] = None,
+    limit: Annotated[int, typer.Option("--limit", help="How many results.", min=1)] = 10,
+    config: ConfigOption = None,
+) -> None:
+    """Search your past research: final answers, questions, answers, summaries and notes."""
+    settings = _load(_config_path(config))
+    slug = slugify(topic, fallback=DEFAULT_TOPIC) if topic else None
+    hits = library.search(settings.store_path, query, slug, limit)
+    if not hits:
+        typer.echo("Nothing found.")
+        return
+    for hit in hits:
+        typer.echo(f"{hit.path}  [{hit.kind}]")
+        typer.echo(f"  {hit.snippet}")
+
+
+@app.command()
+def leaderboard(
+    topic: Annotated[
+        str | None, typer.Option("--topic", "-t", help="Only count runs on this topic.")
+    ] = None,
+    config: ConfigOption = None,
+) -> None:
+    """Which models the others ranked highest across your own full runs."""
+    settings = _load(_config_path(config))
+    slug = slugify(topic, fallback=DEFAULT_TOPIC) if topic else None
+    table = library.leaderboard(settings.store_path, slug)
+    if not table:
+        typer.echo("No rankings yet. Full runs (--full) record how members rank each other.")
+        return
+    width = max(len(p.model) for p in table)
+    typer.echo("Score: 0 means always ranked best, 1 always ranked worst.")
+    typer.echo("")
+    typer.echo(f"{'Model'.ljust(width)}  {'Score':>5}  {'Firsts':>6}  {'Rankings':>8}  {'Runs':>4}")
+    for p in table:
+        typer.echo(
+            f"{p.model.ljust(width)}  {p.score:>5.2f}  {p.firsts:>6}  {p.rankings:>8}  {p.runs:>4}"
+        )
+    typer.echo("")
+    typer.echo("Few runs make for a noisy ranking. Treat this as a hint, not a verdict.")
 
 
 if __name__ == "__main__":

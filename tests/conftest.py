@@ -25,11 +25,19 @@ MODELS = [
 Reply = Callable[[dict], httpx.Response]
 
 
-def answer(text: str = "## Answer\n\nForty-two.", cost: float | None = 0.004) -> httpx.Response:
+def answer(
+    text: str = "## Answer\n\nForty-two.",
+    cost: float | None = 0.004,
+    finish_reason: str = "stop",
+    reasoning_tokens: int | None = None,
+) -> httpx.Response:
     usage: dict = {"prompt_tokens": 300, "completion_tokens": 200, "total_tokens": 500}
     if cost is not None:
         usage["cost"] = cost
-    body = {"choices": [{"message": {"role": "assistant", "content": text}}], "usage": usage}
+    if reasoning_tokens is not None:
+        usage["completion_tokens_details"] = {"reasoning_tokens": reasoning_tokens}
+    choice = {"message": {"role": "assistant", "content": text}, "finish_reason": finish_reason}
+    body = {"choices": [choice], "usage": usage}
     return httpx.Response(200, json=body)
 
 
@@ -40,6 +48,8 @@ def stage_of(body: dict) -> str:
         return "critique"
     if "chairman of a research council" in system:
         return "synthesis"
+    if "research memory for one topic" in system:
+        return "memory"
     return "research"
 
 
@@ -61,6 +71,12 @@ def default_reply(body: dict) -> httpx.Response:
             "## Open questions\n\nNone.",
             cost=0.006,
         )
+    if stage == "memory":
+        patch = {
+            "add": [{"text": "A claim.", "label": "agreed but unchecked"}],
+            "open_disputes": [{"text": "Whether the claim holds everywhere."}],
+        }
+        return answer("```json\n" + json.dumps(patch) + "\n```", cost=0.003)
     return answer(f"## Answer\n\nAnswer from {model}.")
 
 
@@ -77,6 +93,9 @@ class FakeOpenRouter:
         self.chat_requests: list[dict] = []
         self.auth_headers: list[str | None] = []
         self.model_list_requests = 0
+        self.key_limit: float | None = None
+        self.key_remaining: float | None = None
+        self.key_status = 200
 
     def reply(self, model: str, *responses: httpx.Response, stage: str | None = None) -> None:
         """Queue responses for a model, optionally for one stage only.
@@ -99,6 +118,12 @@ class FakeOpenRouter:
                 }
                 for model_id, name, prompt, completion in MODELS
             ]
+            return httpx.Response(200, json={"data": data})
+
+        if request.url.path.endswith("/key"):
+            if self.key_status != 200:
+                return httpx.Response(self.key_status, json={"error": {"message": "no"}})
+            data = {"limit": self.key_limit, "limit_remaining": self.key_remaining, "usage": 0}
             return httpx.Response(200, json={"data": data})
 
         body = json.loads(request.content)

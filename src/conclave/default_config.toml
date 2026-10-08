@@ -16,13 +16,17 @@ claims_checked = 8
 # The longest answer a model may give, in tokens (about 0.75 words each).
 # Lower it to cut cost; raise it for long, detailed answers.
 max_answer_tokens = 1500
+# How hard reasoning models think before answering: none, minimal, low, medium
+# or high. Thinking is billed as output and is not shown. Conclave gives every
+# call 2,048 tokens of room for it on top of the answer, so answers are not cut short.
+reasoning = "low"
 
 [budget]
 # Spending limits in US dollars. A run that reaches its cap stops before the
 # next stage and saves what it has. When the monthly cap is reached, new full
 # runs are refused and quick runs still work.
 full_run_usd = 0.75
-quick_run_usd = 0.05
+quick_run_usd = 0.10
 monthly_usd = 15.00
 
 # --- Profiles -----------------------------------------------------------------

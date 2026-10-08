@@ -3,7 +3,7 @@ import asyncio
 import httpx
 import pytest
 
-from conclave.client import ModelError, OpenRouterClient
+from conclave.client import REASONING_ALLOWANCE, ModelError, OpenRouterClient
 from conclave.config import Member
 from conclave.http import new_client
 from conftest import KEY, answer, failure
@@ -36,7 +36,8 @@ def test_request_carries_the_model_limit_and_key(openrouter):
 
     body = openrouter.chat_requests[0]
     assert body["model"] == SONNET.model
-    assert body["max_tokens"] == 777
+    assert body["max_tokens"] == 777 + REASONING_ALLOWANCE
+    assert body["reasoning"] == {"effort": "low"}
     assert body["messages"] == MESSAGES
     assert body["usage"] == {"include": True}
     assert openrouter.auth_headers == [f"Bearer {KEY}"]
@@ -69,7 +70,7 @@ def test_gives_up_after_three_attempts(openrouter):
 
 @pytest.mark.parametrize(
     ("status", "phrase"),
-    [(401, "rejected the API key"), (402, "out of credit"), (404, "does not know this model")],
+    [(401, "rejected the API key"), (402, "lack of credit"), (404, "does not know this model")],
 )
 def test_clear_message_and_no_retry_for_caller_errors(openrouter, status, phrase):
     openrouter.reply(SONNET.model, failure(status))
@@ -135,3 +136,40 @@ def test_command_line_route_is_refused_for_now(openrouter):
         _complete(member=Member("anthropic/claude-sonnet-5.5", route="cli"))
 
     assert openrouter.chat_requests == []
+
+
+def test_reasoning_effort_comes_from_the_config(openrouter):
+    async def go():
+        async with new_client() as http:
+            client = OpenRouterClient(http, KEY, reasoning="none")
+            return await client.complete(SONNET, MESSAGES, 500)
+
+    asyncio.run(go())
+
+    assert openrouter.chat_requests[0]["reasoning"] == {"effort": "none"}
+
+
+def test_answer_cut_off_at_the_length_limit_is_flagged(openrouter):
+    openrouter.reply(
+        SONNET.model, answer("Half an ans", finish_reason="length", reasoning_tokens=120)
+    )
+
+    done = _complete()
+
+    assert done.text == "Half an ans"
+    assert done.cut_off is True
+    assert done.reasoning_tokens == 120
+
+
+def test_finished_answer_is_not_flagged(openrouter):
+    done = _complete()
+
+    assert done.cut_off is False
+    assert done.reasoning_tokens == 0
+
+
+def test_all_thinking_and_no_answer_says_what_to_change(openrouter):
+    openrouter.reply(SONNET.model, answer("", finish_reason="length", reasoning_tokens=500))
+
+    with pytest.raises(ModelError, match="whole length limit thinking"):
+        _complete()

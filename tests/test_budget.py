@@ -9,7 +9,7 @@ from conclave.budget import (
     worst_case_cost,
 )
 from conclave.catalog import ModelInfo
-from conclave.client import Completion
+from conclave.client import REASONING_ALLOWANCE, Completion
 from conclave.config import Member
 
 CHEAP = ModelInfo("a/cheap", "Cheap", 0.000001, 0.000002, 1000)
@@ -23,12 +23,13 @@ def test_estimate_tokens_rounds_up():
     assert estimate_tokens("abcde") == 2
 
 
-def test_worst_case_assumes_every_member_writes_a_full_answer():
+def test_worst_case_assumes_every_member_writes_a_full_answer_after_full_reasoning():
     members = [Member("a/cheap"), Member("b/dear"), Member("c/unlisted")]
 
     cost = worst_case_cost(members, CATALOG, prompt_tokens=100, max_tokens=1000)
 
-    assert cost == pytest.approx(100 * 0.000001 + 1000 * 0.000002 + 100 * 0.00001 + 1000 * 0.00005)
+    out = 1000 + REASONING_ALLOWANCE
+    assert cost == pytest.approx(100 * 0.000001 + out * 0.000002 + 100 * 0.00001 + out * 0.00005)
 
 
 def test_cost_prefers_the_reported_figure():
