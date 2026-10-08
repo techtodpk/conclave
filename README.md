@@ -2,7 +2,29 @@
 
 **An LLM council that remembers.** Several models research the same question, critique each other, and save what they conclude to a research store on your own machine. Every later question on that topic starts from what the council already worked out.
 
-> **Status: milestone 2 of 8.** You can ask a question and get an answer from every member of your council, saved to your research store. Cross-critique and the one-page synthesis arrive in milestone 3. See the [roadmap](#roadmap).
+> **Status: milestone 2 of 8, version 0.2.0.** Conclave can ask one model or a whole council the same question and save every answer to your research store. It does not yet make the models critique each other, write a combined answer, remember earlier research, or search the web. See [what works today](#what-works-today).
+
+## What works today
+
+| Capability | Status | Arrives in |
+| --- | --- | --- |
+| Ask the chairman a question (quick mode) | Works | Milestone 2 |
+| Ask every council member at the same time (`--full`) | Works | Milestone 2 |
+| Save each run as plain files: question, one answer per model, tokens, cost and timings | Works | Milestone 2 |
+| List models with live prices; build and pick council profiles | Works | Milestone 2 |
+| Budget caps per run and per month, checked before anything is sent | Works | Milestone 2 |
+| Models critique each other with names hidden, then rank the answers | Not yet | Milestone 3 |
+| One-page combined answer showing what the models agreed and disagreed on | Not yet | Milestone 3 |
+| Topic memory: earlier research is read before each new question | Not yet | Milestone 4 |
+| Search across your past research; personal model leaderboard | Not yet | Milestone 4 |
+| Web search, and checking key claims against the cited pages | Not yet | Milestone 5 |
+| Use from Claude Desktop and Cursor (MCP server) | Not yet | Milestone 6 |
+| Run members on your own Claude, Gemini or ChatGPT plan instead of the API | Not yet | Milestone 7 |
+| Public benchmark ranking chart | Not yet | Milestone 8 |
+
+**Until web search arrives, answers come from each model's training data.** Every answer lists its key claims with a confidence for each and says what it is unsure of, but nothing is checked against live sources yet.
+
+Milestone 2 was run against the live OpenRouter API on Windows with Python 3.14 on 8 October 2026. The automated tests run in CI on Windows, macOS and Linux with every push.
 
 ## Why this exists
 
@@ -30,7 +52,7 @@ The gaps Conclave is built to close:
 
 ## How it works
 
-A full run has six stages. The first and last are what connect the debate to the memory.
+This is the design for a full run. Today only stage 2, Research, is built, without web search; the others arrive in milestones 3 to 5. The first and last stages are what connect the debate to the memory.
 
 ```mermaid
 flowchart TD
@@ -89,6 +111,8 @@ conclave-research/topics/unity/runs/2026-10-07-143205-is-unity-dots-ready-for-pr
 
 `conclave init --store /path/to/folder` puts the research store somewhere else. Running `init` again never overwrites anything.
 
+If your terminal says `conclave` is not recognised, run it through Python instead: `python -m conclave ask "..."` works the same way.
+
 ## Choosing your council
 
 The council is not fixed. A **profile** names the members who answer, the chairman who writes the final page, and the checker who verifies claims. Three profiles ship as a starting point, and you can edit them or add your own in `config.toml`.
@@ -124,14 +148,21 @@ Conclave calls models through pay-per-use APIs. Subscriptions to chat apps gener
 - **Quick mode by default.** One model plus your store answers most questions. The full council runs when you ask for it.
 - **Your own subscriptions, optionally.** From milestone 7, a member can be routed through a vendor's official command-line tool running on your own plan instead of the API. This is for personal use only, and you are responsible for checking your plan's terms.
 
-Every run records its real cost in `meta.json` and prints it. Measured figures for typical runs will be published here once there are enough of them.
+Every run records its real cost in `meta.json` and prints it. First measured runs, 8 October 2026, one short technical question:
+
+| Run | Models | Cost | Slowest answer |
+| --- | --- | --- | --- |
+| Quick | Claude Sonnet 5.5 as chairman | $0.012 | 10 s |
+| Full, research stage only | Claude Sonnet 5.5, GPT-6.1 Sol, Gemini 3.8 Flash | $0.020 | 18 s |
+
+These cover the Research stage alone. Full runs will cost more once critique, synthesis, claim checking and web search are added, and these figures will be updated as each milestone lands.
 
 ## Privacy
 
-- **Your research stays on your machine.** The store is a folder of plain files, and its search index is a local SQLite file. Conclave has no server.
-- **Models see what they are asked about.** During a run, the recalled summary, disputes and notes for the topic are sent to the model providers as part of the prompt.
+- **Your research stays on your machine.** The store is a folder of plain files. Conclave has no server.
+- **Models see what they are asked.** Today that is your question. From milestone 4, the earlier research recalled for the topic is sent too, as part of the prompt.
 - **Backup is your choice.** The store reaches a Git remote only if you push it there.
-- **Keys stay out of Git.** `.env` is ignored, and CI scans every push for secrets.
+- **Keys stay out of Git.** The key is read from the environment or a `.env` file outside the code, is never printed or saved in a run, and CI scans every push for secrets.
 
 Keep your research store out of this repository. The `.gitignore` ignores `research/` and `conclave-research/` as a safety net.
 

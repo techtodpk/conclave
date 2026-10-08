@@ -2,7 +2,7 @@
 
 This guide takes you from nothing to asking your first question. It covers Windows, macOS and Linux.
 
-**What you can test today (milestone 2):** installing the tool, asking a question to one model or to a whole council, and finding every answer saved in your research store. Cross-critique between models and the one-page synthesis arrive in milestone 3.
+**What you can test today (milestone 2):** installing the tool, asking a question to one model or to a whole council, and finding every answer saved in your research store. Cross-critique between models and the one-page synthesis arrive in milestone 3. The README's [what works today](../README.md#what-works-today) table lists every capability and when it arrives.
 
 ## 1. What you need
 
@@ -56,6 +56,8 @@ Check that it worked:
 ```bash
 conclave --version
 ```
+
+If the terminal says `conclave` is not recognised, use `python -m conclave --version` instead. Every command in this guide works the same way with `python -m conclave` in place of `conclave`.
 
 Expected output:
 

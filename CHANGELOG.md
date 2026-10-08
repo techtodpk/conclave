@@ -2,9 +2,9 @@
 
 Each milestone on the [roadmap](README.md#roadmap) is tagged in Git when it is complete.
 
-## Milestone 2: council core (2026-10-07)
+## Milestone 2: council core (2026-10-08)
 
-Version 0.2.0.
+Tag: `milestone-2`. Version 0.2.0.
 
 - `conclave ask "question"` asks the council and saves every answer to the research store. Quick mode asks the chairman; `--full` asks every member at the same time. `--topic` files the run under a topic, `--profile` picks a council, and `--members` asks a one-off set of models.
 - Each run is saved as plain files: `question.md`, one answer file per model, and `meta.json` with tokens, cost and timings.
@@ -15,7 +15,10 @@ Version 0.2.0.
 - The API key is read from the environment or a `.env` file, and is never printed or stored.
 - One member failing never loses the others' answers. Rate limits and provider errors are retried twice.
 - New setting `run.max_answer_tokens` (default 1500).
+- `python -m conclave` works the same as the `conclave` command, for terminals where the command is not on PATH.
+- When no API key is found, the message says what was found in each place checked, including a `.env.txt` that Notepad may have created. Key files saved by Windows editors with a byte-order mark or as UTF-16 are read correctly.
 - Tests run against a simulated OpenRouter: no key, no cost, no network.
+- Checked against the live OpenRouter API on Windows with Python 3.14: a quick run cost $0.012, and a full research run with three members cost $0.020.
 
 Not yet available: cross-critique between models and the one-page synthesis, which arrive in milestone 3. Web search arrives in milestone 5, so answers in this milestone come from the models' training data.
 
