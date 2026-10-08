@@ -1,6 +1,11 @@
 # Changelog
 
-Each milestone on the [roadmap](README.md#roadmap) is tagged in Git when it is complete.
+Each milestone on the [roadmap](README.md#roadmap) is tagged in Git when it is complete. Work in progress and pending tasks are tracked in [project status](docs/STATUS.md).
+
+## Unreleased
+
+- README: a "what works today" table, measured costs from the first live runs, and corrected descriptions of stages that are not built yet.
+- New [project status](docs/STATUS.md) page: scope, every milestone's tasks with what is done and pending, and known issues.
 
 ## Milestone 2: council core (2026-10-08)
 

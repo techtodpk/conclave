@@ -2,7 +2,7 @@
 
 **An LLM council that remembers.** Several models research the same question, critique each other, and save what they conclude to a research store on your own machine. Every later question on that topic starts from what the council already worked out.
 
-> **Status: milestone 2 of 8, version 0.2.0.** Conclave can ask one model or a whole council the same question and save every answer to your research store. It does not yet make the models critique each other, write a combined answer, remember earlier research, or search the web. See [what works today](#what-works-today).
+> **Status: milestone 2 of 8, version 0.2.0.** Conclave can ask one model or a whole council the same question and save every answer to your research store. It does not yet make the models critique each other, write a combined answer, remember earlier research, or search the web. See [what works today](#what-works-today), and [project status](docs/STATUS.md) for what is being built now and what is still to come.
 
 ## What works today
 
@@ -167,6 +167,8 @@ These cover the Research stage alone. Full runs will cost more once critique, sy
 Keep your research store out of this repository. The `.gitignore` ignores `research/` and `conclave-research/` as a safety net.
 
 ## Roadmap
+
+The task-level plan for each milestone, with what is done, in progress and pending, is in [project status](docs/STATUS.md).
 
 - [x] **1. Repo setup.** Licence, README, config, research store setup, tests and CI.
 - [x] **2. Council core.** Model client, profiles, a model list with live prices, and the Research stage.
