@@ -16,6 +16,10 @@ Version 0.7.0. Tagged `milestone-7` after its first live run on Windows. Decisio
 - The app's packages are the optional extra `.[app]`. The command line still needs only two packages.
 - Config changes from the app are small edits that keep your comments; a change that would make the config invalid is refused before it is written. The key is saved in `.env` beside the config.
 - The runner reports progress as it goes, for the app: each stage, each model call as it starts and finishes, and the claim-checking steps.
+- Cited pages are fetched only over http or https, on port 80 or 443, and only when every resolved address is public. Each redirect is checked again, so a link cannot send the fetch to loopback, a private network, or a link-local address such as the cloud metadata service.
+- Budget checks fail closed. If OpenRouter's price list cannot be loaded, the run uses the last price list Conclave saved, and is refused if there is none. A missing or negative price is refused rather than treated as free. This month's spending plus the run's worst-case cost must fit the monthly cap, for quick runs, full runs and questions asked through MCP.
+- A run's `meta.json` is written even when a later stage crashes, so that spend still counts toward the monthly cap. A page that cannot be fetched, for any reason, is recorded on that source and the run continues.
+- A per-topic lock and an atomic replace keep `memory.json` from being left half-written or overwritten by a second run. Git commits in the research store include only Conclave's own topic files.
 - The setup guide starts with a section for people who do not use a terminal, with screenshots.
 - A project website at techtodpk.github.io/conclave, served free by GitHub Pages from `docs/index.html`.
 - "Try it in your browser": a GitHub Codespaces configuration that installs Conclave and opens the app. It runs on the visitor's own free Codespaces allowance. Inside a Codespace, and only there, the app also trusts that Codespace's forwarded web address.

@@ -8,11 +8,18 @@ user and is only ever appended to.
 from __future__ import annotations
 
 import json
+import os
 import re
+import sys
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import Any
+
+from conclave.store import atomic_write
 
 MEMORY_FILE = "memory.json"
 SUMMARY_FILE = "summary.md"
@@ -28,6 +35,64 @@ RECALL_CHAR_LIMIT = 12_000
 
 class MemoryFileError(Exception):
     """memory.json is unreadable. The message says where."""
+
+
+# Threads that already hold a topic's lock. flock is not re-entrant across two opens,
+# and a run holds the lock from the moment it reads the memory until it writes it back.
+_HELD = threading.local()
+
+
+def _lock_fd(fd: int) -> None:
+    if sys.platform == "win32":
+        import msvcrt
+
+        os.lseek(fd, 0, os.SEEK_SET)
+        if os.fstat(fd).st_size < 1:
+            os.write(fd, b"\0")
+            os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(fd, fcntl.LOCK_EX)
+
+
+def _unlock_fd(fd: int) -> None:
+    if sys.platform == "win32":
+        import msvcrt
+
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(fd, fcntl.LOCK_UN)
+
+
+@contextmanager
+def topic_lock(topic_dir: Path) -> Iterator[None]:
+    """One writer at a time for a topic, across threads and processes."""
+    topic_dir = Path(topic_dir)
+    lock_path = (topic_dir.parent / f".{topic_dir.name}.lock").resolve()
+    held: set[Path] | None = getattr(_HELD, "paths", None)
+    if held is None:
+        held = set()
+        _HELD.paths = held
+    if lock_path in held:
+        yield
+        return
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        _lock_fd(fd)
+        held.add(lock_path)
+        try:
+            yield
+        finally:
+            held.discard(lock_path)
+            _unlock_fd(fd)
+    finally:
+        os.close(fd)
 
 
 @dataclass
@@ -113,23 +178,28 @@ def load_memory(topic_dir: Path, topic: str) -> TopicMemory:
 
 
 def save_memory(topic_dir: Path, memory: TopicMemory) -> list[Path]:
-    """Write memory.json, summary.md and disputes.md. Returns the paths written."""
-    topic_dir.mkdir(parents=True, exist_ok=True)
-    data = {
-        "topic": memory.topic,
-        "claims": [vars(c) for c in memory.claims],
-        "disputes": [vars(d) for d in memory.disputes],
-    }
-    written = []
-    for name, text in (
-        (MEMORY_FILE, json.dumps(data, indent=2) + "\n"),
-        (SUMMARY_FILE, render_summary(memory)),
-        (DISPUTES_FILE, render_disputes(memory)),
-    ):
-        target = topic_dir / name
-        target.write_text(text, encoding="utf-8")
-        written.append(target)
-    return written
+    """Write memory.json, summary.md and disputes.md. Returns the paths written.
+
+    The topic lock is held, and each file is replaced in one step, so a crash or a
+    second run cannot leave a half-written memory.
+    """
+    with topic_lock(topic_dir):
+        topic_dir.mkdir(parents=True, exist_ok=True)
+        data = {
+            "topic": memory.topic,
+            "claims": [vars(c) for c in memory.claims],
+            "disputes": [vars(d) for d in memory.disputes],
+        }
+        written = []
+        for name, text in (
+            (MEMORY_FILE, json.dumps(data, indent=2) + "\n"),
+            (SUMMARY_FILE, render_summary(memory)),
+            (DISPUTES_FILE, render_disputes(memory)),
+        ):
+            target = topic_dir / name
+            atomic_write(target, text)
+            written.append(target)
+        return written
 
 
 def render_summary(memory: TopicMemory) -> str:
@@ -183,17 +253,18 @@ def read_notes(topic_dir: Path) -> str:
 
 def add_note(topic_dir: Path, topic: str, text: str, today: date) -> Path:
     """Append a dated note. notes.md is the user's own file; it is never rewritten."""
-    path = topic_dir / NOTES_FILE
-    topic_dir.mkdir(parents=True, exist_ok=True)
-    if not path.is_file():
-        path.write_text(
-            f"# {topic}: notes\n\n*Your own notes. The council reads them before every "
-            "question on this topic, and they take precedence over its conclusions.*\n\n",
-            encoding="utf-8",
-        )
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(f"- {today.isoformat()}: {text.strip()}\n")
-    return path
+    with topic_lock(topic_dir):
+        path = topic_dir / NOTES_FILE
+        topic_dir.mkdir(parents=True, exist_ok=True)
+        if not path.is_file():
+            path.write_text(
+                f"# {topic}: notes\n\n*Your own notes. The council reads them before every "
+                "question on this topic, and they take precedence over its conclusions.*\n\n",
+                encoding="utf-8",
+            )
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(f"- {today.isoformat()}: {text.strip()}\n")
+        return path
 
 
 # --- recall ---------------------------------------------------------------------

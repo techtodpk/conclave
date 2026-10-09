@@ -26,12 +26,21 @@ def test_estimate_tokens_rounds_up():
 
 
 def test_worst_case_assumes_every_member_writes_a_full_answer_after_full_reasoning():
-    members = [Member("a/cheap"), Member("b/dear"), Member("c/unlisted")]
+    members = [Member("a/cheap"), Member("b/dear")]
 
     cost = worst_case_cost(members, CATALOG, prompt_tokens=100, max_tokens=1000)
 
     out = 1000 + REASONING_ALLOWANCE
     assert cost == pytest.approx(100 * 0.000001 + out * 0.000002 + 100 * 0.00001 + out * 0.00005)
+
+
+def test_an_unknown_price_has_no_worst_case():
+    assert worst_case_cost([Member("a/cheap"), Member("c/unlisted")], CATALOG, 100, 1000) is None
+    free = ModelInfo("a/free", "Free", None, 0.0, 1000)
+    assert worst_case_cost([Member("a/free")], {free.id: free}, 100, 1000) is None
+    # Zero is a real price, a free model, and is not the same as an unknown one.
+    zero = ModelInfo("a/zero", "Zero", 0.0, 0.0, 1000)
+    assert worst_case_cost([Member("a/zero")], {zero.id: zero}, 100, 1000) == 0.0
 
 
 def test_cost_prefers_the_reported_figure():

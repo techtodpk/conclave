@@ -7,6 +7,7 @@ Each question is saved as a run folder under its topic. The topic's memory
 from __future__ import annotations
 
 import json
+import os
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -152,9 +153,19 @@ def write_review(run: Run, model_id: str, letter: str, reviewed: list[str], text
     return write_model_text(run, "critiques", model_id, details, text)
 
 
+def atomic_write(path: Path, text: str) -> None:
+    """Replace `path` with `text`. A crash keeps the previous file, never a half-written one."""
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    try:
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def write_json(run: Run, name: str, data: Any) -> Path:
     target = run.path / name
-    target.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    atomic_write(target, json.dumps(data, indent=2) + "\n")
     return target
 
 

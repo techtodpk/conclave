@@ -332,19 +332,34 @@ def test_run_above_the_cap_is_refused_before_anything_is_sent(workspace, openrou
     assert workspace.runs() == []
 
 
-def test_monthly_cap_pauses_full_runs_but_not_quick_ones(workspace, openrouter):
+def _record_spend(workspace, amount: float) -> None:
+    from datetime import datetime
+
+    folder = workspace.store / "topics" / "billed" / "runs" / "2026-10-01-000000-earlier"
+    folder.mkdir(parents=True)
+    started = datetime.now().astimezone().isoformat(timespec="seconds")
+    (folder / "meta.json").write_text(
+        json.dumps({"started": started, "totals": {"cost_usd": amount}}), encoding="utf-8"
+    )
+
+
+def test_monthly_cap_counts_spent_plus_the_estimate_in_every_mode(workspace, openrouter):
     _init(workspace)
     workspace.set_key()
-    _edit_config(workspace, "monthly_usd = 15.00", "monthly_usd = 0.01")
-    assert _ask(workspace, "First question", "--full").exit_code == 0  # costs 0.031
+    # Spent is under the cap on its own. The estimate on top of it is not.
+    _edit_config(workspace, "monthly_usd = 15.00", "monthly_usd = 1.01")
+    _record_spend(workspace, 1.00)
 
-    blocked = _ask(workspace, "Second question", "--full")
-    allowed = _ask(workspace, "Third question", "--quick")
+    blocked_quick = _ask(workspace, "A question", "--quick")
+    blocked_full = _ask(workspace, "Another question", "--full")
 
-    assert blocked.exit_code == 1
-    assert "full runs are paused" in blocked.output
-    assert allowed.exit_code == 0, allowed.output
-    assert len(workspace.runs()) == 2
+    assert blocked_quick.exit_code == 1
+    assert "monthly cap" in blocked_quick.output
+    assert "Nothing was sent" in blocked_quick.output
+    assert blocked_full.exit_code == 1
+    assert "monthly cap" in blocked_full.output
+    assert openrouter.chat_requests == []
+    assert workspace.runs() == []
 
 
 def test_missing_key_says_where_to_put_it(workspace, openrouter):
@@ -369,20 +384,77 @@ def test_key_is_read_from_an_env_file(workspace, openrouter):
     assert openrouter.auth_headers == [f"Bearer {KEY}"]
 
 
-def test_run_continues_when_prices_are_unavailable(workspace, openrouter):
+def test_run_is_refused_when_prices_are_unavailable(workspace, openrouter):
     _init(workspace)
     workspace.set_key()
     openrouter.models_status = 503
 
     result = _ask(workspace, "A question", "--full")
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1
     assert "Prices unavailable" in result.output
+    assert "Nothing was sent" in result.output
+    assert openrouter.chat_requests == []
+    assert workspace.runs() == []
+
+
+def test_saved_prices_are_used_when_the_list_cannot_be_loaded(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+    assert _ask(workspace, "First question", "--quick").exit_code == 0
+    openrouter.models_status = 503
+    openrouter.chat_requests.clear()
+
+    result = _ask(workspace, "Second question", "--quick")
+
+    assert result.exit_code == 0, result.output
+    assert "last saved price list" in result.output
+    assert openrouter.chat_requests
+    assert len(workspace.runs()) == 2
+
+
+def test_a_missing_price_refuses_the_run(workspace, openrouter, monkeypatch):
+    _init(workspace)
+    workspace.set_key()
+    from conclave.catalog import ModelInfo, fetch_models
+
+    real = fetch_models
+
+    async def wrapped(client):
+        models = await real(client)
+        info = models["anthropic/claude-sonnet-5.5"]
+        models[info.id] = ModelInfo(
+            info.id, info.name, None, info.completion_price, info.context_length
+        )
+        return models
+
+    monkeypatch.setattr("conclave.runner.fetch_models", wrapped)
+
+    result = _ask(workspace, "A question")
+
+    assert result.exit_code == 1
+    assert "missing or negative" in result.output
+    assert "Nothing was sent" in result.output
+    assert openrouter.chat_requests == []
+
+
+def test_meta_is_saved_when_a_later_stage_crashes(workspace, openrouter, monkeypatch):
+    _init(workspace)
+    workspace.set_key()
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr("conclave.runner.critique", boom)
+
+    result = _ask(workspace, "A question", "--full", "--no-search")
+
+    assert result.exit_code != 0
     (run,) = workspace.runs()
     meta = _meta(run)
-    assert meta["budget"]["worst_case_estimate_usd"] is None
-    assert meta["stages"] == ["research", "critique", "verify", "synthesis", "memory"]
-    assert meta["totals"]["cost_usd"] == 0.031
+    assert meta["stages"] == ["research"]
+    assert meta["totals"]["cost_usd"] == 0.012
+    assert any("RuntimeError" in note for note in meta["notes"])
 
 
 def test_cost_is_estimated_from_prices_when_not_reported(workspace, openrouter):

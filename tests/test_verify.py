@@ -1,4 +1,5 @@
 import json
+import re
 
 from typer.testing import CliRunner
 
@@ -58,6 +59,42 @@ def test_members_may_search_and_other_stages_may_not(workspace, openrouter):
             assert "You can search the web" in body["messages"][0]["content"]
         else:
             assert "tools" not in body, stage_of(body)
+
+
+def test_private_and_illegal_urls_are_recorded_and_not_fetched(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+    internal = "http://169.254.169.254/latest/meta-data"
+    bad_port = "http://example.com:99999/secret"
+    text = f"## Answer\n\nSee {internal} and {bad_port}."
+    cited = [(internal, "metadata", "instance " * 20), (bad_port, "port", "nope")]
+    for model in (SONNET, GPT, "google/gemini-3.8-flash"):
+        openrouter.reply(model, answer(text, cites=cited, searches=1), stage="research")
+
+    def extract(body):
+        user = body["messages"][1]["content"]
+        ids = re.findall(r"^- (S\d+): ", user, re.M)
+        letters = re.findall(r"^### Response ([A-Z])$", user, re.M)
+        claims = [
+            {
+                "text": "The cited page says something definite about the sky.",
+                "responses": letters,
+                "sources": ids[:2],
+                "disagreement": False,
+            }
+        ]
+        return answer("```json\n" + json.dumps({"claims": claims}) + "\n```", cost=0.002)
+
+    openrouter.replies[f"extract:{SONNET}"] = extract
+
+    result = _ask(workspace, "Why is the sky blue?", "--full", "-t", "sky")
+
+    assert result.exit_code == 0, result.output
+    assert not any("169.254.169.254" in url or ":99999" in url for url in openrouter.fetched)
+    sources = json.loads((_run_dir(workspace) / "sources.json").read_text(encoding="utf-8"))
+    errors = {item["url"]: item["fetch_error"] for item in sources}
+    assert errors[internal] == "not a public address"
+    assert errors[bad_port] == "only ports 80 and 443 are fetched"
 
 
 def test_full_run_checks_claims_against_fetched_pages(workspace, openrouter):

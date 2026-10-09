@@ -24,7 +24,15 @@ from conclave.budget import (
     verify_worst_case,
     worst_case_cost,
 )
-from conclave.catalog import CatalogError, ModelInfo, closest, fetch_models
+from conclave.catalog import (
+    CatalogError,
+    ModelInfo,
+    closest,
+    fetch_models,
+    price_cache_path,
+    read_price_cache,
+    write_price_cache,
+)
 from conclave.client import KeyStatus, OpenRouterClient, key_status
 from conclave.config import Config, Member
 from conclave.council import (
@@ -56,12 +64,14 @@ from conclave.memory import (
     memory_listing,
     parse_patch,
     save_memory,
+    topic_lock,
 )
 from conclave.sources import CitedSource, collect, fetch_all, new_page_client
 from conclave.store import (
     DEFAULT_TOPIC,
     Run,
     create_run,
+    month_spend,
     slugify,
     write_answer,
     write_final,
@@ -264,31 +274,47 @@ async def run_question(
     outcome.searches = searches
     claims = settings.claims_checked if checker is not None else 0
 
-    memory = None if fresh else load_memory(topic_dir, topic_slug)
-    recall_text = ""
-    if memory is not None:
-        outcome.recall = build_recall(topic_dir, memory)
-        recall_text = outcome.recall.text
-        if outcome.recall.truncated:
-            outcome.notes.append("The topic's memory was long, so the recall was cut short.")
+    with topic_lock(topic_dir):
+        memory = None if fresh else load_memory(topic_dir, topic_slug)
+        recall_text = ""
+        if memory is not None:
+            outcome.recall = build_recall(topic_dir, memory)
+            recall_text = outcome.recall.text
+            if outcome.recall.truncated:
+                outcome.notes.append("The topic's memory was long, so the recall was cut short.")
 
-    async with new_client() as http:
-        catalog: dict[str, ModelInfo] = {}
-        try:
-            catalog = await fetch_models(http)
-        except CatalogError as error:
-            outcome.notes.append(
-                f"Prices unavailable, so the cost could not be checked in advance ({error})."
+        async with new_client() as http:
+            cache_path = price_cache_path(settings.store_path)
+            try:
+                catalog = await fetch_models(http)
+            except CatalogError as error:
+                cached = read_price_cache(cache_path)
+                if not cached:
+                    raise Refused(
+                        "Prices unavailable, so the cost cannot be checked. Nothing was sent "
+                        f"({error}). Try again when OpenRouter's model list is reachable."
+                    ) from None
+                catalog = cached
+                outcome.notes.append(
+                    "Prices unavailable from OpenRouter "
+                    f"({error}), so this run uses the last saved price list."
+                )
+            else:
+                write_price_cache(cache_path, catalog)
+
+            research_tokens = messages_tokens(
+                research_messages(question, today, recall_text, web=searches > 0)
             )
-
-        research_tokens = messages_tokens(
-            research_messages(question, today, recall_text, web=searches > 0)
-        )
-        if catalog:
             everyone = members + ([chairman.member] if chairman else [])
             if checker is not None and searches and claims:
                 everyone.append(checker.member)
             check_ids(everyone, catalog)
+            missing = _unpriced(everyone, catalog)
+            if missing:
+                raise Refused(
+                    f"The price of '{missing}' is missing or negative, so the cost cannot be "
+                    "checked. Nothing was sent."
+                )
             if chairman is None:
                 estimate = worst_case_cost(members, catalog, research_tokens, answer_tokens)
             else:
@@ -304,6 +330,10 @@ async def run_question(
                     checker.member if checker else None,
                     claims,
                 )
+            if estimate is None:
+                raise Refused(
+                    "The cost cannot be checked because a price is missing. Nothing was sent."
+                )
             outcome.estimate = estimate
             if estimate > cap:
                 raise Refused(
@@ -311,105 +341,133 @@ async def run_question(
                     f"cap for {mode} runs. Nothing was sent. Lower run.max_answer_tokens, "
                     "choose cheaper models, or raise the cap in the config file."
                 )
-
-        outcome.key = await key_status(http, api_key)
-        remaining = outcome.key.remaining if outcome.key else None
-        if remaining is not None and outcome.estimate is not None and outcome.estimate > remaining:
-            raise Refused(
-                f"Your OpenRouter key has {dollars(remaining)} left of its spending limit, and "
-                f"this run could cost up to {dollars(outcome.estimate)}. Nothing was sent. Add "
-                "credit or raise the key's limit at https://openrouter.ai/keys, or try a quick "
-                "run or cheaper models."
-            )
-
-        client: Any = OpenRouterClient(http, api_key, reasoning=settings.reasoning)
-        report: Any = _Silent()
-        if progress is not None:
-            client = report = _Reporting(client, progress)
-        context = _Context(
-            question,
-            settings,
-            started,
-            profile_name,
-            cap,
-            catalog,
-            topic_dir,
-            memory,
-            recall_text,
-            checker,
-            searches,
-            report,
-        )
-
-        # Research
-        report.stage_started(
-            "research", "searching the web and answering" if searches else "answering"
-        )
-        results = await research(
-            client, seats, question, answer_tokens, today, recall_text, searches
-        )
-        if not any(result.ok for result in results):
-            outcome.calls = [Call("research", result) for result in results]
-            return outcome
-
-        run = create_run(settings.store_path, topic, question, started)
-        outcome.run = run
-        write_question(
-            run,
-            question,
-            {
-                "Asked": started.isoformat(timespec="seconds"),
-                "Topic": run.topic,
-                "Mode": mode,
-                "Profile": profile_name,
-                "Memory": "not used (--fresh)"
-                if fresh
-                else "read" + (" and updated" if chairman else ""),
-            },
-        )
-        if recall_text:
-            (run.path / "recall.md").write_text(
-                "# Earlier research given to the council\n\n" + recall_text + "\n",
-                encoding="utf-8",
-            )
-
-        answers = label_answers(results) if chairman else []
-        letters = iter(a.letter for a in answers)
-        for result in results:
-            call = _record(Call("research", result), catalog)
-            if result.completion is not None:
-                letter = next(letters, None)
-                path = write_answer(
-                    run, result.seat.member.model, result.seat.role, result.completion.text, letter
+            spent = month_spend(settings.store_path, started)
+            monthly = settings.budget.monthly_usd
+            if spent + estimate > monthly:
+                raise Refused(
+                    f"This run could cost up to {dollars(estimate)}, and this month's spending is "
+                    f"already {dollars(spent)}. Together that is above the {cap_text(monthly)} "
+                    "monthly cap. Nothing was sent. Raise budget.monthly_usd in the config file "
+                    "to continue."
                 )
-                call.file = f"answers/{path.name}"
-                call.letter = letter
-            outcome.calls.append(call)
-        outcome.stages.append("research")
-        for result in results:
-            if result.completion is not None and result.completion.search_failed:
+
+            outcome.key = await key_status(http, api_key)
+            remaining = outcome.key.remaining if outcome.key else None
+            if (
+                remaining is not None
+                and outcome.estimate is not None
+                and outcome.estimate > remaining
+            ):
+                raise Refused(
+                    f"Your OpenRouter key has {dollars(remaining)} left of its spending limit, and "
+                    f"this run could cost up to {dollars(outcome.estimate)}. Nothing was sent. Add "
+                    "credit or raise the key's limit at https://openrouter.ai/keys, or try a quick "
+                    "run or cheaper models."
+                )
+
+            client: Any = OpenRouterClient(http, api_key, reasoning=settings.reasoning)
+            report: Any = _Silent()
+            if progress is not None:
+                client = report = _Reporting(client, progress)
+            context = _Context(
+                question,
+                settings,
+                started,
+                profile_name,
+                cap,
+                catalog,
+                topic_dir,
+                memory,
+                recall_text,
+                checker,
+                searches,
+                report,
+            )
+
+            # Research
+            report.stage_started(
+                "research", "searching the web and answering" if searches else "answering"
+            )
+            results = await research(
+                client, seats, question, answer_tokens, today, recall_text, searches
+            )
+            if not any(result.ok for result in results):
+                outcome.calls = [Call("research", result) for result in results]
+                return outcome
+
+            run = create_run(settings.store_path, topic, question, started)
+            outcome.run = run
+            try:
+                write_question(
+                    run,
+                    question,
+                    {
+                        "Asked": started.isoformat(timespec="seconds"),
+                        "Topic": run.topic,
+                        "Mode": mode,
+                        "Profile": profile_name,
+                        "Memory": "not used (--fresh)"
+                        if fresh
+                        else "read" + (" and updated" if chairman else ""),
+                    },
+                )
+                if recall_text:
+                    (run.path / "recall.md").write_text(
+                        "# Earlier research given to the council\n\n" + recall_text + "\n",
+                        encoding="utf-8",
+                    )
+
+                answers = label_answers(results) if chairman else []
+                letters = iter(a.letter for a in answers)
+                for result in results:
+                    call = _record(Call("research", result), catalog)
+                    if result.completion is not None:
+                        letter = next(letters, None)
+                        path = write_answer(
+                            run,
+                            result.seat.member.model,
+                            result.seat.role,
+                            result.completion.text,
+                            letter,
+                        )
+                        call.file = f"answers/{path.name}"
+                        call.letter = letter
+                    outcome.calls.append(call)
+                outcome.stages.append("research")
+                for result in results:
+                    if result.completion is not None and result.completion.search_failed:
+                        outcome.notes.append(
+                            f"Web search failed for {result.seat.member.model} "
+                            f"({result.completion.search_failed}), so it answered without "
+                            "searching."
+                        )
+
+                if answers:
+                    done = {r.seat.member.model: r.completion for r in results if r.completion}
+                    outcome.pages = collect(
+                        {a.letter: list(done[a.model].sources) for a in answers if a.model in done},
+                        {a.letter: a.text for a in answers},
+                    )
+
+                if chairman is not None:
+                    body = await _council(outcome, client, run, context, results, answers, chairman)
+                    if body is not None and memory is not None:
+                        await _update_memory(outcome, client, run, context, chairman, body, approve)
+                if outcome.pages:
+                    _save_sources(outcome, run, topic_dir, started)
+            except Refused:
+                raise
+            except Exception as error:
                 outcome.notes.append(
-                    f"Web search failed for {result.seat.member.model} "
-                    f"({result.completion.search_failed}), so it answered without searching."
+                    "The run stopped because of an unexpected error "
+                    f"({type(error).__name__}: {error}). What was saved is kept, "
+                    "including its cost."
                 )
-
-        if answers:
-            done = {r.seat.member.model: r.completion for r in results if r.completion}
-            outcome.pages = collect(
-                {a.letter: list(done[a.model].sources) for a in answers if a.model in done},
-                {a.letter: a.text for a in answers},
-            )
-
-        if chairman is not None:
-            body = await _council(outcome, client, run, context, results, answers, chairman)
-            if body is not None and memory is not None:
-                await _update_memory(outcome, client, run, context, chairman, body, approve)
-        if outcome.pages:
-            _save_sources(outcome, run, topic_dir, started)
-
-    _save_meta(outcome, run, question, mode, profile_name, started, cap)
-    _commit(outcome, settings.store_path, run, topic_dir, question)
-    return outcome
+                raise
+            finally:
+                _save_meta(outcome, run, question, mode, profile_name, started, cap)
+                _commit(outcome, settings.store_path, run, topic_dir, question)
+        return outcome
 
 
 async def _council(
@@ -536,12 +594,13 @@ async def _verify(
     ids = source_ids(list(outcome.pages.values()))
     messages = extract_messages(context.question, today, answers, reviews, ids, limit)
     prompt_tokens = messages_tokens(messages)
-    if (
-        context.catalog
-        and outcome.total_cost
-        + verify_worst_case(checker.member, context.catalog, prompt_tokens, limit)
-        > context.cap
-    ):
+    upcoming = verify_worst_case(checker.member, context.catalog, prompt_tokens, limit)
+    if upcoming is None:
+        outcome.notes.append(
+            "Claim checking was skipped: its cost cannot be checked, so it was not started."
+        )
+        return
+    if outcome.total_cost + upcoming > context.cap:
         outcome.notes.append(
             "Claim checking was skipped: it could have taken the run over its cap. "
             "The answer's claims are labelled from the members' agreement alone."
@@ -843,6 +902,15 @@ def _record(call: Call, catalog: dict[str, ModelInfo]) -> Call:
     return call
 
 
+def _unpriced(members: list[Member], catalog: dict[str, ModelInfo]) -> str | None:
+    """The first member whose price is missing, or None when every price is known."""
+    for member in members:
+        info = catalog.get(member.model)
+        if info is None or info.prompt_price is None or info.completion_price is None:
+            return member.model
+    return None
+
+
 def _would_exceed(
     outcome: Outcome,
     catalog: dict[str, ModelInfo],
@@ -851,9 +919,11 @@ def _would_exceed(
     max_tokens: int,
     cap: float,
 ) -> bool:
-    if not catalog:
-        return False
-    return outcome.total_cost + worst_case_cost(members, catalog, prompt_tokens, max_tokens) > cap
+    """True when the stage might pass the cap, or when its cost cannot be checked."""
+    extra = worst_case_cost(members, catalog, prompt_tokens, max_tokens)
+    if extra is None:
+        return True
+    return outcome.total_cost + extra > cap
 
 
 def _stop(
@@ -866,6 +936,13 @@ def _stop(
     cap: float,
 ) -> None:
     stage_cost = worst_case_cost(members, catalog, prompt_tokens, max_tokens)
+    if stage_cost is None:
+        outcome.stopped = (
+            f"Stopped before the {stage} stage: its cost cannot be checked, and this run has "
+            f"already spent {dollars(outcome.total_cost)} of its {cap_text(cap)} cap. "
+            "Everything up to this point is saved."
+        )
+        return
     outcome.stopped = (
         f"Stopped before the {stage} stage: it could cost up to {dollars(stage_cost)}, and this "
         f"run has already spent {dollars(outcome.total_cost)} of its {cap_text(cap)} cap. "

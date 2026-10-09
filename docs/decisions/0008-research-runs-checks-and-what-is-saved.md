@@ -13,11 +13,11 @@ Milestone 2 makes the first real model calls. That raised four practical questio
 - stops if a model id is not in the list, suggesting the closest ids from the same vendor;
 - works out the worst-case cost of the run, assuming every model reads the whole prompt and writes the longest answer allowed, and stops if that is above the cap for the run's mode.
 
-If the model list cannot be fetched, the run goes ahead with a note that the cost could not be estimated. Being unable to look up prices should not stop someone from working.
+If the model list cannot be fetched, the run uses the last price list Conclave saved. If it has never saved one, the run is refused and nothing is sent. A missing or negative price is refused too, rather than treated as free.
 
 **Cost comes from OpenRouter.** Each call asks OpenRouter to report its cost, and that figure is recorded. If it is missing, the cost is computed from the token counts and the listed prices and marked "estimated".
 
-**The monthly cap uses the store.** The month's spending is the sum of the recorded cost of every run started this calendar month. There is no separate ledger to drift out of step with the runs.
+**The monthly cap uses the store.** The month's spending is the sum of the recorded cost of every run started this calendar month. There is no separate ledger to drift out of step with the runs. A new run is refused, in every mode, when that spending plus the run's worst-case estimate would pass the monthly cap. `meta.json` is written even if a later stage crashes, so the spend is not lost.
 
 **Partial success is kept; total failure is not.** If some members fail, the other answers are saved and the failures are recorded in `meta.json`. If no model answers, nothing is saved: the store holds research, not failed attempts.
 

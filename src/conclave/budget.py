@@ -42,14 +42,18 @@ def synthesis_max_tokens(answer_tokens: int) -> int:
 
 def worst_case_cost(
     members: list[Member], catalog: dict[str, ModelInfo], prompt_tokens: int, max_tokens: int
-) -> float:
+) -> float | None:
     """The most a stage could cost: every model reads the prompt, uses all its room for
-    reasoning, and writes the longest answer allowed."""
+    reasoning, and writes the longest answer allowed.
+
+    None when any member's price is missing. That is not zero: a missing price cannot
+    be checked, and the caller must refuse the stage rather than treat it as free.
+    """
     total = 0.0
     for member in members:
         info = catalog.get(member.model)
-        if info is None:
-            continue
+        if info is None or info.prompt_price is None or info.completion_price is None:
+            return None
         output = max_tokens + REASONING_ALLOWANCE
         total += prompt_tokens * info.prompt_price + output * info.completion_price
     return total
@@ -61,7 +65,7 @@ MEMORY_MAX_TOKENS = 1500
 
 def memory_update_cost(
     chairman: Member, catalog: dict[str, ModelInfo], listing_tokens: int, answer_tokens: int
-) -> float:
+) -> float | None:
     """The most the memory update could cost: it reads the memory and the chairman's page."""
     prompt = listing_tokens + STAGE_OVERHEAD_TOKENS + synthesis_max_tokens(answer_tokens)
     return worst_case_cost([chairman], catalog, prompt, MEMORY_MAX_TOKENS)
@@ -93,18 +97,22 @@ def research_worst_case(
     prompt_tokens: int,
     answer_tokens: int,
     searches: int = 0,
-) -> float:
+) -> float | None:
     """The most the Research stage could cost, searches included.
 
     After each search the model reads the whole conversation again, so the question is
     billed up to `searches` + 1 times, and the search results pile up as it goes.
+    None when a member's price is unknown.
     """
     if searches <= 0:
         return worst_case_cost(members, catalog, prompt_tokens, answer_tokens)
     results = min(searches * RESULTS_PER_SEARCH, MAX_RESULTS_PER_ANSWER) * SEARCH_RESULT_TOKENS
     prompt = (searches + 1) * prompt_tokens + searches * results
     fees = len(members) * searches * SEARCH_PRICE_USD
-    return worst_case_cost(members, catalog, prompt, answer_tokens) + fees
+    base = worst_case_cost(members, catalog, prompt, answer_tokens)
+    if base is None:
+        return None
+    return base + fees
 
 
 def verify_worst_case(
@@ -112,14 +120,19 @@ def verify_worst_case(
     catalog: dict[str, ModelInfo],
     extract_prompt_tokens: int,
     claims: int,
-) -> float:
-    """The most claim checking could cost: picking the claims, then checking them."""
+) -> float | None:
+    """The most claim checking could cost: picking the claims, then checking them.
+
+    None when the checker's price is unknown.
+    """
     if claims <= 0:
         return 0.0
     extract = worst_case_cost([checker], catalog, extract_prompt_tokens, EXTRACT_MAX_TOKENS)
     check = worst_case_cost(
         [checker], catalog, check_prompt_tokens(claims), check_max_tokens(claims)
     )
+    if extract is None or check is None:
+        return None
     return extract + check
 
 
@@ -133,8 +146,10 @@ def full_run_worst_case(
     searches: int = 0,
     checker: Member | None = None,
     claims: int = 0,
-) -> float:
+) -> float | None:
     """The most a full run could cost, if every call writes the longest text allowed.
+
+    None when any part of the run cannot be priced.
 
     `listing_tokens` is the size of the topic's memory; None means memory is not updated.
     `searches` is each member's search limit, 0 for no web search. Claims are checked
@@ -167,14 +182,17 @@ def full_run_worst_case(
         if listing_tokens is None
         else memory_update_cost(chairman, catalog, listing_tokens, answer_tokens)
     )
-    return research + critique + verify + synthesis + memory
+    parts = (research, critique, verify, synthesis, memory)
+    if any(part is None for part in parts):
+        return None
+    return sum(parts)
 
 
 def cost_of(completion: Completion, info: ModelInfo | None) -> tuple[float | None, str]:
     """What a call cost, and where the figure came from: reported, estimated or unknown."""
     if completion.cost_usd is not None:
         return completion.cost_usd, "reported"
-    if info is not None:
+    if info is not None and info.prompt_price is not None and info.completion_price is not None:
         computed = (
             completion.prompt_tokens * info.prompt_price
             + completion.completion_tokens * info.completion_price

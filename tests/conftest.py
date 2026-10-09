@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
 from collections.abc import Callable
@@ -11,6 +12,7 @@ import pytest
 
 import conclave.client
 import conclave.http
+import conclave.sources
 
 KEY = "sk-or-test-key"
 
@@ -261,6 +263,10 @@ def openrouter(monkeypatch) -> FakeOpenRouter:
     fake = FakeOpenRouter()
     monkeypatch.setattr(conclave.http, "TRANSPORT", httpx.MockTransport(fake.handle))
     monkeypatch.setattr(conclave.client, "RETRY_DELAYS", (0.0, 0.0))
+    # Page fetches must not touch the network. Hostnames look public; IP literals are still checked.
+    monkeypatch.setattr(
+        conclave.sources, "resolve_host", lambda host: [ipaddress.ip_address("8.8.8.8")]
+    )
     return fake
 
 

@@ -6,6 +6,7 @@ import pytest
 from typer.testing import CliRunner
 
 from conclave.cli import app
+from conclave.gitstore import commit
 from conftest import answer, failure, stage_of
 
 runner = CliRunner()
@@ -232,6 +233,44 @@ def test_each_run_is_committed_when_the_store_is_a_git_repository(workspace, ope
     assert "topics/unity/memory.json" in tracked
     assert "topics/unity/summary.md" in tracked
     assert "final.md" in tracked
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+def test_commit_keeps_to_conclave_paths_and_leaves_other_staged_files(tmp_path):
+    store = tmp_path / "store"
+    store.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=store, check=True)
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=store, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=store, check=True)
+    (store / "private.txt").write_text("secret", encoding="utf-8")
+    subprocess.run(["git", "add", "private.txt"], cwd=store, check=True)
+    memory = store / "topics" / "sky" / "memory.json"
+    memory.parent.mkdir(parents=True)
+    memory.write_text("{}\n", encoding="utf-8")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("nope", encoding="utf-8")
+
+    problem = commit(store, [memory, outside, store / "model-prices.json"], "conclave: test")
+
+    assert problem is not None and "outside the research store" in problem
+    committed = subprocess.run(
+        ["git", "show", "--name-only", "--format=", "HEAD"],
+        cwd=store,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "topics/sky/memory.json" in committed
+    assert "private.txt" not in committed
+    assert "outside.txt" not in committed
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=store,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert staged.strip() == "private.txt"
 
 
 def test_fresh_and_review_together_is_refused(workspace, openrouter):
