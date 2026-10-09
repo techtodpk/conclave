@@ -1,15 +1,23 @@
 import asyncio
+import ipaddress
 
 import httpx
+import pytest
 
+import conclave.http
+import conclave.sources
 from conclave.client import Source
 from conclave.sources import (
+    CitedSource,
     best_passage,
+    block_reason,
     collect,
     domain,
+    fetch_all,
     fetch_page,
     found_in,
     html_to_text,
+    new_page_client,
     normalise,
     urls_in,
 )
@@ -72,13 +80,18 @@ def test_quotes_match_despite_case_spacing_and_punctuation():
     assert not found_in("GIL", "GIL")  # too short to mean anything
 
 
-def _fetch(handler):
+def _fetch(handler, url="https://a.example/page"):
     async def go():
         transport = httpx.MockTransport(handler)
         async with httpx.AsyncClient(transport=transport) as http:
-            return await fetch_page(http, "https://a.example/page")
+            return await fetch_page(http, url)
 
-    return asyncio.run(go())
+    original = conclave.sources.resolve_host
+    conclave.sources.resolve_host = lambda host: [ipaddress.ip_address("8.8.8.8")]
+    try:
+        return asyncio.run(go())
+    finally:
+        conclave.sources.resolve_host = original
 
 
 def test_fetch_reads_html_and_rejects_what_it_cannot_use():
@@ -101,6 +114,155 @@ def test_fetch_reads_html_and_rejects_what_it_cannot_use():
     assert _fetch(empty)[1].startswith("almost no readable text")
     assert _fetch(gone) == (None, "HTTP 403")
     assert _fetch(broken) == (None, "ConnectTimeout")
+
+
+def test_an_unexpected_fetch_error_is_recorded():
+    def broken(request):
+        raise OverflowError("connect(): port must be 0-65535.")
+
+    assert _fetch(broken) == (None, "connect(): port must be 0-65535.")
+
+
+def test_a_bad_port_is_recorded_instead_of_raising():
+    async def go():
+        async with httpx.AsyncClient() as http:
+            return await fetch_page(http, "http://example.com:99999/secret")
+
+    text, error = asyncio.run(go())
+
+    assert text is None
+    assert error == "only ports 80 and 443 are fetched"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://127.0.0.1/",
+        "http://127.0.0.1:80/api",
+        "https://10.1.2.3/",
+        "http://172.16.0.1/x",
+        "http://192.168.1.1/",
+        "http://169.254.169.254/latest/meta-data",
+        "http://[::1]/",
+        "http://[fc00::1]/",
+        "http://[fe80::1]/",
+        "http://0.0.0.0/",
+        "http://localhost/",
+        "http://printer.local/",
+        "file:///etc/passwd",
+        "http://docs.example:8080/",
+        "http://docs.example:99999/",
+        "http://user:pass@docs.example/",
+        "ftp://8.8.8.8/",
+    ],
+)
+def test_internal_and_non_web_urls_are_blocked(url):
+    assert block_reason(url) is not None
+
+
+def test_public_http_and_https_on_standard_ports_are_allowed(monkeypatch):
+    monkeypatch.setattr(
+        conclave.sources, "resolve_host", lambda host: [ipaddress.ip_address("8.8.8.8")]
+    )
+
+    assert block_reason("https://docs.example/a") is None
+    assert block_reason("http://docs.example/a") is None
+    assert block_reason("https://docs.example:443/a") is None
+    assert block_reason("http://8.8.8.8/dns") is None
+
+
+def test_numeric_host_tricks_are_blocked_when_they_resolve_to_loopback(monkeypatch):
+    monkeypatch.setattr(
+        conclave.sources, "resolve_host", lambda host: [ipaddress.ip_address("127.0.0.1")]
+    )
+
+    assert block_reason("http://2130706433/") == "not a public address"
+    assert block_reason("http://127.1/") == "not a public address"
+    # Some parsers reject a leading-zero address outright. Either way it is not fetched.
+    assert block_reason("http://0177.0.0.1/") is not None
+
+
+def test_a_hostname_is_blocked_when_any_address_is_private(monkeypatch):
+    monkeypatch.setattr(
+        conclave.sources,
+        "resolve_host",
+        lambda host: [ipaddress.ip_address("8.8.8.8"), ipaddress.ip_address("169.254.169.254")],
+    )
+
+    assert block_reason("http://metadata.example/latest") == "not a public address"
+
+
+def test_an_unresolved_host_is_not_fetched(monkeypatch):
+    def boom(host):
+        raise OSError("no")
+
+    monkeypatch.setattr(conclave.sources, "resolve_host", boom)
+
+    assert block_reason("http://missing.example/") == "could not resolve the host"
+
+
+def test_redirect_to_a_private_address_is_not_followed(monkeypatch):
+    seen = []
+
+    def handler(request):
+        seen.append(str(request.url))
+        if request.url.host == "docs.example":
+            return httpx.Response(302, headers={"location": "http://127.0.0.1/secret"})
+        return httpx.Response(200, text="secret " * 40)
+
+    monkeypatch.setattr(conclave.http, "TRANSPORT", httpx.MockTransport(handler))
+    monkeypatch.setattr(
+        conclave.sources, "resolve_host", lambda host: [ipaddress.ip_address("8.8.8.8")]
+    )
+
+    async def go():
+        async with new_page_client() as http:
+            return await fetch_page(http, "http://docs.example/start")
+
+    text, error = asyncio.run(go())
+
+    assert text is None
+    assert error == "not a public address"
+    assert seen == ["http://docs.example/start"]
+
+
+def test_redirect_to_another_public_page_is_fetched(monkeypatch):
+    seen = []
+    body = "Readable words. " * 30
+
+    def handler(request):
+        seen.append(str(request.url))
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"location": "https://docs.example/page"})
+        return httpx.Response(200, headers={"content-type": "text/html"}, text=f"<p>{body}</p>")
+
+    monkeypatch.setattr(conclave.http, "TRANSPORT", httpx.MockTransport(handler))
+    monkeypatch.setattr(
+        conclave.sources, "resolve_host", lambda host: [ipaddress.ip_address("8.8.8.8")]
+    )
+
+    async def go():
+        async with new_page_client() as http:
+            return await fetch_page(http, "http://docs.example/start")
+
+    text, error = asyncio.run(go())
+
+    assert error == ""
+    assert text.startswith("Readable words.")
+    assert seen == ["http://docs.example/start", "https://docs.example/page"]
+
+
+def test_fetch_all_records_a_blocked_page_and_does_not_raise():
+    async def go():
+        page = CitedSource("http://169.254.169.254/latest")
+        async with httpx.AsyncClient() as http:
+            await fetch_all(http, [page])
+        return page
+
+    page = asyncio.run(go())
+
+    assert page.fetched is False
+    assert page.fetch_error == "not a public address"
 
 
 def test_quote_may_not_join_text_across_a_gap():

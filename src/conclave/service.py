@@ -21,7 +21,7 @@ from conclave.memory import (
     load_memory,
     read_notes,
 )
-from conclave.runner import Outcome, Refused, cap_text, dollars, run_question
+from conclave.runner import Outcome, Refused, run_question
 from conclave.store import DEFAULT_TOPIC, init_store, month_spend, slugify
 
 
@@ -104,13 +104,8 @@ def plan_ask(
 
     init_store(settings.store_path)
     spent = month_spend(settings.store_path, started)
-    monthly = settings.budget.monthly_usd
-    if mode == "full" and spent >= monthly:
-        raise Stop(
-            f"This month's spending is {dollars(spent)}, at or above the {cap_text(monthly)} "
-            "monthly cap, so full runs are paused. Quick runs still work. "
-            "Raise budget.monthly_usd in the config file to continue."
-        )
+    # The monthly cap is applied once the worst-case estimate is known, in run_question:
+    # spent + estimate must fit, for every mode including MCP.
     return Plan(mode, chosen, seats, chair, spent)
 
 

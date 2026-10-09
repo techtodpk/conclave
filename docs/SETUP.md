@@ -470,7 +470,7 @@ All tests should pass. They use a simulated OpenRouter, so they need no key, cos
 | `The OpenRouter account is out of credit` | The prepaid balance is used up | Add credit at openrouter.ai |
 | `'<id>' is not in OpenRouter's model list` | A model was renamed or retired, or the id is mistyped | Run `conclave models --search <name>` and put the current id in your profile |
 | `This run could cost up to ...` | The worst-case cost is above your cap | Lower `max_answer_tokens`, choose cheaper models, or raise the cap in `[budget]` |
-| `full runs are paused` | This month's recorded spending reached the monthly cap | Raise `monthly_usd` in `[budget]`. Quick runs still work |
+| `above the ... monthly cap` | This month's spending plus the run's worst-case cost is above the monthly cap | Raise `monthly_usd` in `[budget]`. The check applies to quick runs, full runs and MCP |
 | `Rate limited` on one member | That model's provider is busy | Run again shortly. The other members' answers were saved |
 | `CUT OFF` beside a model, or `Cut off at the length limit` | The model reached its length limit, so that text ends early. The other models are told | Raise `max_answer_tokens`, or set `reasoning` lower in `[run]` |
 | `No member cited a web page` | The members answered without searching, or cited nothing | Nothing to fix; the claims are labelled from the members' agreement. A question about recent facts is more likely to make them search |

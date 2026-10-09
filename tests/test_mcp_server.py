@@ -78,6 +78,27 @@ def test_full_ask_runs_the_whole_council_with_search_and_checks(workspace, openr
     assert "The topic's memory was updated:" in text
 
 
+def test_the_monthly_cap_includes_the_estimate_for_a_quick_ask(workspace, openrouter):
+    import json
+    from datetime import datetime
+
+    _init(workspace)
+    workspace.set_key()
+    text = workspace.config.read_text(encoding="utf-8")
+    workspace.config.write_text(text.replace("monthly_usd = 15.00", "monthly_usd = 1.01"), "utf-8")
+    folder = workspace.store / "topics" / "billed" / "runs" / "2026-10-01-000000-earlier"
+    folder.mkdir(parents=True)
+    started = datetime.now().astimezone().isoformat(timespec="seconds")
+    (folder / "meta.json").write_text(
+        json.dumps({"started": started, "totals": {"cost_usd": 1.0}}), encoding="utf-8"
+    )
+
+    with pytest.raises(ToolError, match="monthly cap"):
+        _call(workspace, "ask_council", question="Q?")
+
+    assert openrouter.chat_requests == []
+
+
 def test_refusals_come_back_as_tool_errors_and_nothing_is_sent(workspace, openrouter):
     _init(workspace)
     workspace.set_key()

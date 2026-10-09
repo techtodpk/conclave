@@ -61,7 +61,7 @@ A milestone is done when every task below is ticked, the tests and CI pass, it h
 - [x] `conclave profile add`: build a council, with every model id checked against the live list
 - [x] `conclave ask`: quick mode (chairman only) and `--full` (every member at once)
 - [x] Each run saved as plain files: question, one answer per model, tokens, cost and timings
-- [x] Budget caps checked before anything is sent; monthly cap pauses full runs
+- [x] Budget caps checked before anything is sent; monthly cap is this month's spending plus the run's worst-case cost, for every mode
 - [x] One member failing never loses the others' answers
 - [x] `python -m conclave` for terminals where the command is not on PATH
 - [x] Run against the live API: quick run $0.012, three-member research run $0.020

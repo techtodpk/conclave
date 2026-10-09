@@ -3,7 +3,15 @@ import asyncio
 import httpx
 import pytest
 
-from conclave.catalog import CatalogError, closest, fetch_models, search
+from conclave.catalog import (
+    CatalogError,
+    ModelInfo,
+    closest,
+    fetch_models,
+    read_price_cache,
+    search,
+    write_price_cache,
+)
 from conclave.http import new_client
 
 
@@ -48,9 +56,25 @@ def test_odd_entries_do_not_break_the_list(monkeypatch):
     models = _fetch()
 
     assert set(models) == {"a/free", "b/no-pricing"}
-    assert models["a/free"].prompt_price == 0.0
-    assert models["a/free"].completion_price == 0.0
+    assert models["a/free"].prompt_price is None
+    assert models["a/free"].completion_price is None
+    assert models["b/no-pricing"].prompt_price is None
     assert models["b/no-pricing"].name == "b/no-pricing"
+
+
+def test_a_saved_price_list_round_trips_and_keeps_unknown_prices(tmp_path):
+    models = {"a/m": ModelInfo("a/m", "M", 0.1, None, 10)}
+    path = tmp_path / "model-prices.json"
+
+    write_price_cache(path, models)
+    loaded = read_price_cache(path)
+
+    assert loaded is not None
+    assert loaded["a/m"].prompt_price == 0.1
+    assert loaded["a/m"].completion_price is None
+    assert read_price_cache(tmp_path / "missing.json") is None
+    (tmp_path / "broken.json").write_text("{", encoding="utf-8")
+    assert read_price_cache(tmp_path / "broken.json") is None
 
 
 def test_search_filters_and_sorts(openrouter):

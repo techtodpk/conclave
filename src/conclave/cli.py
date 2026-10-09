@@ -115,6 +115,13 @@ def _describe(member: Member) -> str:
     return f"{member.model} [{member.route}]"
 
 
+def _per_million(value: float | None) -> str:
+    """A price per million tokens, or 'unknown' when OpenRouter did not give one."""
+    if value is None:
+        return f"{'unknown':>9}"
+    return f"{value:9.3f}"
+
+
 @app.command("config")
 def show_config(config: ConfigOption = None) -> None:
     """Show the settings in effect: store, budget caps and every profile."""
@@ -196,8 +203,8 @@ def models(
     typer.echo(f"{'Model id'.ljust(width)}  {'Input':>9}  {'Output':>9}  {'Context':>9}")
     for model in shown:
         typer.echo(
-            f"{model.id.ljust(width)}  {model.prompt_per_million:>9.3f}  "
-            f"{model.completion_per_million:>9.3f}  {model.context_length:>9,}"
+            f"{model.id.ljust(width)}  {_per_million(model.prompt_per_million)}  "
+            f"{_per_million(model.completion_per_million)}  {model.context_length:>9,}"
         )
     if len(found) > len(shown):
         typer.echo("")

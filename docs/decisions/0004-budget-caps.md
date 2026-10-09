@@ -28,3 +28,5 @@ In milestone 4 the quick-run default rose from 0.05 to 0.10. Every call now rese
 - The defaults come from a rough estimate and are to be reset from measured costs after milestone 2.
 
 In milestone 5 the full-run default rose from 0.75 to 1.00, because web search and claim checking raised the worst case of a `full` profile run to about $0.75 ([0011](0011-web-search-and-claim-checking.md)).
+
+Later, the monthly cap was tightened. It now applies to every mode, including quick runs and MCP, and it counts this month's recorded spending plus the run's worst-case estimate. A run whose price cannot be checked is refused.

@@ -197,7 +197,7 @@ Model ids in the default config were checked against the [OpenRouter model list]
 Conclave calls models through pay-per-use APIs. Subscriptions to chat apps generally do not cover API use, so this is a separate cost, and the design keeps it low.
 
 - **One key.** An [OpenRouter](https://openrouter.ai/) key reaches every model. Credits are prepaid, so spending stops when the balance runs out.
-- **Budget caps.** The config sets a cap per full run, per quick run and per month. Before anything is sent, Conclave works out the most a run could cost and refuses it if that is above the cap.
+- **Budget caps.** The config sets a cap per full run, per quick run and per month. Before anything is sent, Conclave works out the most a run could cost and refuses it if that is above the cap, or if this month's spending plus that estimate is above the monthly cap. This applies to quick runs, full runs and questions asked through MCP. If OpenRouter's prices cannot be loaded, Conclave uses the last price list it saved, and refuses the run if it has never saved one. A model whose price is missing or negative is refused too, rather than treated as free.
 - **Quick mode by default.** One model plus your store answers most questions. The full council runs when you ask for it.
 - **Search within limits.** In a full run each member may search up to 3 times (about $0.007 per search), and `--no-search` turns it off.
 - **Your own subscriptions, optionally.** From milestone 8, a member can be routed through a vendor's official command-line tool running on your own plan instead of the API. This is for personal use only, and you are responsible for checking your plan's terms.

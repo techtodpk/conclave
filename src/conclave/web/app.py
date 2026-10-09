@@ -678,8 +678,12 @@ def create_app(
                     "id": m.id,
                     "name": m.name,
                     "vendor": m.vendor,
-                    "prompt": round(m.prompt_per_million, 4),
-                    "completion": round(m.completion_per_million, 4),
+                    "prompt": None
+                    if m.prompt_per_million is None
+                    else round(m.prompt_per_million, 4),
+                    "completion": None
+                    if m.completion_per_million is None
+                    else round(m.completion_per_million, 4),
                     "context": m.context_length,
                 }
                 for m in sorted(found.values(), key=lambda m: m.id)

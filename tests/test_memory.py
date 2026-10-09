@@ -1,4 +1,6 @@
 import json
+import os
+import threading
 from datetime import date
 
 import pytest
@@ -13,6 +15,7 @@ from conclave.memory import (
     parse_patch,
     read_notes,
     save_memory,
+    topic_lock,
 )
 
 TODAY = date(2026, 10, 8)
@@ -186,6 +189,54 @@ def test_save_writes_json_summary_and_disputes(tmp_path):
     assert "**D1** Whether DOTS suits small teams." in (tmp_path / "disputes.md").read_text(
         encoding="utf-8"
     )
+
+
+def test_memory_json_is_replaced_without_leaving_a_partial_file(tmp_path, monkeypatch):
+    import conclave.store as store_module
+
+    replaced = []
+    real = os.replace
+
+    def spy(src, dst):
+        replaced.append(os.path.basename(dst))
+        real(src, dst)
+
+    monkeypatch.setattr(store_module.os, "replace", spy)
+
+    save_memory(tmp_path, _memory_with_claims())
+
+    assert "memory.json" in replaced
+    assert list(tmp_path.glob(".*.tmp")) == []
+    assert load_memory(tmp_path, "unity").claim("C1") is not None
+
+
+def test_topic_lock_excludes_a_second_writer(tmp_path):
+    topic = tmp_path / "topics" / "sky"
+    started = threading.Event()
+    release = threading.Event()
+
+    def hold():
+        with topic_lock(topic):
+            started.set()
+            assert release.wait(2)
+
+    thread = threading.Thread(target=hold)
+    thread.start()
+    assert started.wait(2)
+    acquired = threading.Event()
+
+    def wait_for_lock():
+        with topic_lock(topic):
+            acquired.set()
+
+    other = threading.Thread(target=wait_for_lock)
+    other.start()
+    other.join(0.2)
+    assert not acquired.is_set()
+    release.set()
+    other.join(2)
+    thread.join(2)
+    assert acquired.is_set()
 
 
 def test_missing_memory_is_empty_and_broken_memory_is_an_error(tmp_path):

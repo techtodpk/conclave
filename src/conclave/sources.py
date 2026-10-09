@@ -8,7 +8,9 @@ cannot be fetched falls back to the excerpt the search returned, and the verdict
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import re
+import socket
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from urllib.parse import urlsplit, urlunsplit
@@ -102,6 +104,93 @@ def collect(cited: dict[str, list[Source]], written: dict[str, str]) -> dict[str
     return pages
 
 
+# --- addresses that must not be fetched -------------------------------------------
+
+# Pages are fetched on the user's own machine. A link a model writes must not be able
+# to reach loopback, a private network, or a link-local address such as the cloud
+# metadata service at 169.254.169.254. Only public http(s) on port 80 or 443 is fetched,
+# and every redirect is checked again.
+
+_ALLOWED_PORTS = frozenset({80, 443})
+
+
+def resolve_host(host: str) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
+    """Every address `host` resolves to. Raises OSError when it cannot be resolved."""
+    found: list[ipaddress.IPv4Address | ipaddress.IPv6Address] = []
+    for info in socket.getaddrinfo(host, None, type=socket.SOCK_STREAM):
+        raw = info[4][0].split("%", 1)[0]
+        found.append(ipaddress.ip_address(raw))
+    if not found:
+        raise OSError(host)
+    return found
+
+
+def _is_public(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    mapped = getattr(ip, "ipv4_mapped", None)
+    if mapped is not None:
+        ip = mapped
+    # is_global is false for private, loopback, link-local, reserved and unspecified
+    # addresses. Multicast can still report itself as global, so it is excluded too.
+    return bool(ip.is_global) and not ip.is_multicast
+
+
+def block_reason(url: str) -> str | None:
+    """Why `url` must not be fetched, or None when it is safe to fetch.
+
+    Safe means http or https, port 80 or 443, and a host whose every address is public.
+    """
+    try:
+        parsed = httpx.URL(url)
+    except Exception:  # noqa: BLE001 - an unparseable link is not fetched
+        return "not a usable URL"
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"}:
+        return "only http and https URLs are fetched"
+    if parsed.userinfo:
+        return "URLs with a username or password are not fetched"
+    host = parsed.host.lower().rstrip(".")
+    if not host:
+        return "URL has no host"
+    port = 443 if scheme == "https" else 80
+    if parsed.port is not None:
+        port = parsed.port
+    if port not in _ALLOWED_PORTS:
+        return "only ports 80 and 443 are fetched"
+    if host in {"localhost", "localhost.localdomain"} or host.endswith((".localhost", ".local")):
+        return "not a public address"
+    try:
+        literal: ipaddress.IPv4Address | ipaddress.IPv6Address | None = ipaddress.ip_address(
+            host.split("%", 1)[0]
+        )
+    except ValueError:
+        literal = None
+    if literal is not None:
+        return None if _is_public(literal) else "not a public address"
+    try:
+        addresses = resolve_host(host)
+    except OSError:
+        return "could not resolve the host"
+    if not addresses or any(not _is_public(ip) for ip in addresses):
+        return "not a public address"
+    return None
+
+
+class _GuardedTransport(httpx.AsyncBaseTransport):
+    """Refuses a request, including each redirect, that is not a public web page."""
+
+    def __init__(self, inner: httpx.AsyncBaseTransport) -> None:
+        self._inner = inner
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        reason = block_reason(str(request.url))
+        if reason:
+            raise httpx.RequestError(reason, request=request)
+        return await self._inner.handle_async_request(request)
+
+    async def aclose(self) -> None:
+        await self._inner.aclose()
+
+
 # --- fetching ---------------------------------------------------------------------
 
 
@@ -172,9 +261,31 @@ def html_to_text(html: str) -> tuple[str, str]:
     return " ".join(parser.title.split()), text
 
 
+def _fetch_error(error: BaseException) -> str:
+    """A short reason for a failed fetch, including errors wrapped in a group.
+
+    HTTP failures keep the exception name (`ConnectTimeout`), which is what a
+    source list has always shown. A refusal raised here carries its reason as
+    the message, and that reason is what gets recorded.
+    """
+    if isinstance(error, BaseExceptionGroup) and error.exceptions:
+        return _fetch_error(error.exceptions[0])
+    text = str(error).strip()
+    if isinstance(error, httpx.HTTPError) and type(error) is not httpx.RequestError:
+        return type(error).__name__
+    return text or type(error).__name__
+
+
 async def fetch_page(http: httpx.AsyncClient, url: str) -> tuple[str | None, str]:
-    """(text, error). Text is None when the page could not be read."""
+    """(text, error). Text is None when the page could not be read.
+
+    A blocked address, a bad port, or any other failure is reported as the error
+    string. This never raises: one bad link must not drop the run or its cost.
+    """
     try:
+        reason = block_reason(url)
+        if reason:
+            return None, reason
         async with http.stream("GET", url) as response:
             if response.status_code != 200:
                 return None, f"HTTP {response.status_code}"
@@ -187,13 +298,13 @@ async def fetch_page(http: httpx.AsyncClient, url: str) -> tuple[str | None, str
                 if len(body) > FETCH_MAX_BYTES:
                     return None, "page too large"
             encoding = response.encoding or "utf-8"
-    except httpx.HTTPError as error:
-        return None, type(error).__name__
-    raw = body.decode(encoding, errors="replace")
-    text = html_to_text(raw)[1] if "html" in kind or "<html" in raw[:2000].lower() else raw
-    if len(text) < 200:
-        return None, "almost no readable text (the page may need JavaScript)"
-    return text, ""
+        raw = body.decode(encoding, errors="replace")
+        text = html_to_text(raw)[1] if "html" in kind or "<html" in raw[:2000].lower() else raw
+        if len(text) < 200:
+            return None, "almost no readable text (the page may need JavaScript)"
+        return text, ""
+    except Exception as error:  # noqa: BLE001 - recorded on the page, never fatal to the run
+        return None, _fetch_error(error)
 
 
 async def fetch_all(http: httpx.AsyncClient, pages: list[CitedSource]) -> None:
@@ -213,13 +324,18 @@ async def fetch_all(http: httpx.AsyncClient, pages: list[CitedSource]) -> None:
 
 
 def new_page_client() -> httpx.AsyncClient:
-    """A client for fetching cited pages. Uses the same test transport as the API client."""
+    """A client for fetching cited pages. Uses the same test transport as the API client.
+
+    Redirects are followed, and every hop is checked again, so a public page cannot
+    redirect the fetch onto a private or link-local address.
+    """
     from conclave import http as http_module
 
+    inner = http_module.TRANSPORT or httpx.AsyncHTTPTransport()
     return httpx.AsyncClient(
         timeout=httpx.Timeout(FETCH_TIMEOUT_SECONDS, connect=8.0),
         follow_redirects=True,
-        transport=http_module.TRANSPORT,
+        transport=_GuardedTransport(inner),
         headers={"User-Agent": USER_AGENT, "Accept": "text/html,text/plain;q=0.9,*/*;q=0.5"},
     )
 

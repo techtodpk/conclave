@@ -30,9 +30,11 @@ enabled = true
 max_searches = 3
 
 [budget]
-# Spending limits in US dollars. A run that reaches its cap stops before the
-# next stage and saves what it has. When the monthly cap is reached, new full
-# runs are refused and quick runs still work.
+# Spending limits in US dollars. A run that would pass its cap stops before the
+# next stage and saves what it has. A run is refused, in every mode, when this
+# month's spending plus the run's worst-case cost would pass the monthly cap.
+# If prices cannot be loaded, the last saved price list is used; otherwise the
+# run is refused. A missing or negative price is refused rather than treated as free.
 full_run_usd = 1.00
 quick_run_usd = 0.10
 monthly_usd = 15.00
