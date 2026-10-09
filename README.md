@@ -23,7 +23,7 @@
 | Memory updated after each full run under fixed rules, with every change shown; `--review` to approve first | Works | Milestone 4 |
 | Search across your past research; list topics; personal model leaderboard | Works | Milestone 4 |
 | Members search the web and cite sources; key claims checked against the cited pages | Works | Milestone 5 |
-| Use from Claude Desktop and Cursor (MCP server) | Built; first live run pending | Milestone 6 |
+| Use from Claude Desktop and Cursor (MCP server) | Works in Claude Desktop; Cursor not yet tried | Milestone 6 |
 | Run members on your own Claude, Gemini or ChatGPT plan instead of the API | Not yet | Milestone 8 |
 | Public benchmark ranking chart | Not yet | Milestone 9 |
 
@@ -235,7 +235,7 @@ The task-level plan for each milestone, with what is done, in progress and pendi
 - [x] **3. Critique and chairman.** Anonymised cross-review with saved rankings, then the one-page synthesis.
 - [x] **4. Store and recall.** Topic memory read before every question and updated after full runs, search, and a personal leaderboard.
 - [x] **5. Web search and claim check.** Search-enabled members, claim extraction, source fetch, verdicts.
-- [ ] **6. MCP server.** Claude Desktop and Cursor read and write the same store. Built; live run pending.
+- [x] **6. MCP server.** Claude Desktop and Cursor read and write the same store.
 - [x] **7. App and guided install.** A local app in the browser and a one-command install, for people who do not use a terminal.
 - [ ] **8. CLI adapters and showcase.** Optional subscription routes, a sample topic, measured costs.
 - [ ] **9. Public ranking chart.** Model rankings from published benchmarks beside your own leaderboard.

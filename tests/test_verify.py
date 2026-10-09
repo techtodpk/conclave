@@ -1,5 +1,6 @@
 import json
 
+import pytest
 from typer.testing import CliRunner
 
 from conclave.cli import app
@@ -12,7 +13,7 @@ from conclave.verify import (
     parse_claims,
     source_ids,
 )
-from conftest import PAGE_A, PAGE_B, answer, stage_of
+from conftest import PAGE_A, PAGE_B, answer, failure, stage_of
 
 runner = CliRunner()
 SONNET = "anthropic/claude-sonnet-5.5"
@@ -339,3 +340,73 @@ def test_passages_prefer_the_fetched_page_then_the_excerpt():
         "S1": ("fetched page", "Page text about X."),
         "S2": ("search excerpt only", "Excerpt about X."),
     }
+
+
+# --- a member that answers without searching ------------------------------------------
+
+UNSOURCED = "## Answer\n\nFrom memory.\n\n## Key claims\n\n1. The sky is blue. [high]"
+
+
+def _research_requests(openrouter, model):
+    return [
+        body
+        for body in openrouter.chat_requests
+        if stage_of(body) == "research" and body["model"] == model
+    ]
+
+
+def _call(run, stage, model):
+    calls = json.loads((run / "meta.json").read_text(encoding="utf-8"))["calls"]
+    return next(c for c in calls if c["stage"] == stage and c["model"] == model)
+
+
+def test_member_that_did_not_search_is_asked_again_to_search(workspace, openrouter):
+    cited = answer(
+        "## Answer\n\nChecked.", cites=[(PAGE_A, "Why the sky is blue", "")], searches=1, cost=0.01
+    )
+    openrouter.reply(SONNET, answer(UNSOURCED, cost=0.004), cited, stage="research")
+
+    result = _full(workspace, openrouter)
+
+    first, second = _research_requests(openrouter, SONNET)
+    assert "You have not searched yet" not in first["messages"][-1]["content"]
+    assert second["messages"][-1]["content"].endswith("a claim with no source cannot be checked.")
+    assert "tools" in second
+    record = _call(_run_dir(workspace), "research", SONNET)
+    assert record["asked_to_search"] is True
+    assert record["sources_cited"] == 1
+    assert record["cost_usd"] == pytest.approx(0.014)
+    assert "Checked." in (_run_dir(workspace) / record["file"]).read_text(encoding="utf-8")
+    assert f"{SONNET} answered without searching, so it was asked again to search." in (
+        result.output
+    )
+    assert "asked again to search" in result.output
+    assert len(_research_requests(openrouter, GPT)) == 1
+
+
+def test_member_that_still_does_not_search_is_reported(workspace, openrouter):
+    openrouter.reply(SONNET, answer(UNSOURCED), stage="research")
+
+    result = _full(workspace, openrouter)
+
+    assert len(_research_requests(openrouter, SONNET)) == 2
+    assert "it still cited no pages, so its claims cannot be checked against one." in (
+        result.output
+    )
+
+
+def test_first_answer_stands_if_the_second_call_fails(workspace, openrouter):
+    openrouter.reply(SONNET, answer(UNSOURCED), failure(400, "bad"), stage="research")
+
+    _full(workspace, openrouter)
+
+    record = _call(_run_dir(workspace), "research", SONNET)
+    assert record["status"] == "ok"
+    assert record["asked_to_search"] is False
+    assert "From memory." in (_run_dir(workspace) / record["file"]).read_text(encoding="utf-8")
+
+
+def test_no_second_ask_when_search_is_off_or_failed(workspace, openrouter):
+    _full(workspace, openrouter, "--no-search")
+
+    assert len(_research_requests(openrouter, SONNET)) == 1

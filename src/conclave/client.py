@@ -85,6 +85,9 @@ class Completion:
     # The first attempt was all reasoning and no answer, so it was asked again with reasoning
     # off. cost_usd then includes both attempts.
     retried_without_reasoning: bool = False
+    # The first answer came back without searching or citing a page, so the model was asked
+    # once more to search. cost_usd then includes both attempts.
+    asked_to_search: bool = False
 
 
 Sleep = Callable[[float], Awaitable[None]]

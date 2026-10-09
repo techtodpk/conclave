@@ -393,6 +393,16 @@ async def run_question(
                     f"Web search failed for {result.seat.member.model} "
                     f"({result.completion.search_failed}), so it answered without searching."
                 )
+            elif result.completion is not None and result.completion.asked_to_search:
+                outcome.notes.append(
+                    f"{result.seat.member.model} answered without searching, so it was asked "
+                    "again to search"
+                    + (
+                        "; it still cited no pages, so its claims cannot be checked against one."
+                        if not result.completion.sources
+                        else "."
+                    )
+                )
 
         if answers:
             done = {r.seat.member.model: r.completion for r in results if r.completion}
@@ -945,6 +955,7 @@ def _save_meta(
                 sources_cited=len(done.sources),
                 search_failed=done.search_failed,
                 retried_without_reasoning=done.retried_without_reasoning,
+                asked_to_search=done.asked_to_search,
                 usage=done.usage,
                 seconds=round(done.seconds, 2),
                 file=call.file,

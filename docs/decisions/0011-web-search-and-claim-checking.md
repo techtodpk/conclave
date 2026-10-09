@@ -39,6 +39,10 @@ OpenRouter offers web search in three ways, as of October 2026: a `web` plugin t
 - A page that is out of date or wrong can still verify a claim. "Verified" means a cited page states it, not that it is true; `verification.md` shows the quote so the reader can judge.
 - Word-for-word quote matching will sometimes reject a fair verdict that paraphrased the page. That errs toward "not found", which is the safe direction.
 
+## Addendum, 10 October 2026: at least one search
+
+Letting the model decide when to search let a confident model skip it: in two full runs Claude Sonnet answered from training data alone, so a third of the council's claims had no page to check against. A full run now requires each member to search at least once before answering. If an answer comes back with no search and no cited page while search was working, Conclave asks that member once more, with a note that it has not searched; the second answer replaces the first, and both calls are paid for. If the second call fails, the first answer stands. The model still chooses what to search for and how often, within `search.max_searches`. The extra call is not in the pre-run cost estimate; the cap is checked again before each stage.
+
 ## Sources
 
 - [OpenRouter web search](https://openrouter.ai/docs/web-search)

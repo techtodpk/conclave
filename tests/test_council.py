@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from conclave.client import Completion
 from conclave.config import Member
 from conclave.council import (
@@ -92,3 +94,15 @@ def test_final_page_names_models_and_counts_readable_rankings():
     assert "| C | `c/three` | 1.0 (1 review) |" in page
     assert "| A | `a/one` | not ranked |" in page
     assert "Readable rankings: 1 of 3." in page
+
+
+def test_an_answer_is_unsourced_only_if_search_worked_and_nothing_was_cited():
+    from conclave.client import Completion, Source
+    from conclave.council import _unsourced
+
+    base = Completion("text", 1, 1, 0.0, 1.0)
+    assert _unsourced(base)
+    assert _unsourced(replace(base, searches=None))
+    assert not _unsourced(replace(base, searches=2))
+    assert not _unsourced(replace(base, sources=(Source("https://a.example"),)))
+    assert not _unsourced(replace(base, search_failed="HTTP 504"))

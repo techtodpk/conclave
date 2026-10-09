@@ -21,9 +21,9 @@ Version 0.7.0. Tagged `milestone-7`. Live run on Windows: installed with the one
 - A project website at techtodpk.github.io/conclave, served free by GitHub Pages from `docs/index.html`.
 - "Try it in your browser": a GitHub Codespaces configuration that installs Conclave and opens the app. It runs on the visitor's own free Codespaces allowance. Inside a Codespace, and only there, the app also trusts that Codespace's forwarded web address.
 
-## Milestone 6: MCP server (unreleased)
+## Milestone 6: MCP server, 10 October 2026
 
-Version 0.6.0. Tagged `milestone-6` after its first run in Claude Desktop.
+Version 0.7.0; the MCP server first shipped in 0.6.0. Tagged `milestone-6` after its live run in Claude Desktop on Windows: listing topics, answering from a topic's claims, a quick run, a marked note, and a 70-second full run within one tool call ($0.22). Not yet tried in Cursor.
 
 - `conclave mcp` runs Conclave as an MCP server over stdio, so Claude Desktop, Cursor and other MCP clients can use the research store. It needs the optional extra: `python -m pip install -e ".[mcp]"`.
 - Six tools: `list_topics`, `search_research`, `get_topic` and `get_run` read the store; `ask_council` runs a question; `add_note` adds a note.
@@ -31,6 +31,8 @@ Version 0.6.0. Tagged `milestone-6` after its first run in Claude Desktop.
 - Notes added through MCP end with "(added by <client> via MCP)", so they can be told apart from your own.
 - The setup guide has a new step 10 with the config for Claude Desktop and Cursor on Windows and macOS. Later steps are renumbered.
 - Decision record [0012](docs/decisions/0012-mcp-server.md).
+- Setup step 10 gives the shorter config for people who used the installer: the installed `conclave` command with `"args": ["mcp"]`.
+- Every member now searches at least once in a full run. Claude Sonnet had stopped searching, because the prompt told members not to search for what they know well, so none of its claims could be checked. The prompt now requires a search, and a member that still answers without searching or citing a page is asked once more to search; both calls are counted in the cost, and the run says so. Decision 0011 has an addendum.
 
 ## Milestone 5: web search and claim check (2026-10-08)
 

@@ -360,6 +360,21 @@ conclave ask "your question" --members google/gemini-3.8-flash,openai/gpt-6.1-so
 
 Conclave can run as an MCP server, so Claude Desktop, Cursor and other MCP clients can search your research store, read what the council concluded, and ask the council a question in the middle of a conversation.
 
+**If you installed the app** with the one-line command, the MCP part is already installed. Find the `conclave` command with `where.exe conclave` on Windows or `which conclave` on macOS and Linux; it prints something like `C:\Users\you\.local\bin\conclave.exe`. Use that path as `command` and `["mcp"]` as `args` in step 3 below, and skip steps 1 and 2:
+
+```json
+{
+  "mcpServers": {
+    "conclave": {
+      "command": "C:\\Users\\you\\.local\\bin\\conclave.exe",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+**If you installed from the code:**
+
 **1. Install the MCP extra**, from the Conclave folder:
 
 ```bash
@@ -392,9 +407,9 @@ On Windows this prints something like `C:\Users\you\AppData\Local\Python\pythonc
 | Claude Desktop | Settings, then Developer, then Edit Config. The file is `%APPDATA%\Claude\claude_desktop_config.json` on Windows and `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS |
 | Cursor | `%USERPROFILE%\.cursor\mcp.json` on Windows and `~/.cursor/mcp.json` on macOS and Linux, for every project; or `.cursor/mcp.json` inside one project |
 
-If the file already has an `mcpServers` section, add the `"conclave": {...}` entry inside it. If your config file is not in the default place, add `"--config", "<path to config.toml>"` to `args`.
+If the file already has an `mcpServers` section, add only the `"conclave": {...}` entry inside it, with a comma after the entry before it; a second `mcpServers` block makes the whole file invalid. Copy the file before editing it. If your config file is not in the default place, add `"--config", "<path to config.toml>"` to `args`.
 
-**4. Restart the client completely.** In Claude Desktop, Conclave then appears under Connectors; in Cursor, under Settings, then Tools & MCP.
+**4. Restart the client completely.** For Claude Desktop, quit it from the system tray icon, not just the window. In Claude Desktop, Conclave then appears under Connectors; in Cursor, under Settings, then Tools & MCP.
 
 **5. Try it.** Ask the assistant something like "What has my Conclave research concluded about processes and threads?" It should list your topics and read the `os` topic before answering.
 
@@ -409,7 +424,7 @@ The server offers six tools:
 | `ask_council` | Runs a question. Quick by default; a full council run only when the assistant asks for it | Yes, within your caps |
 | `add_note` | Adds a note to a topic, marked as added by the assistant | No |
 
-Your budget caps apply to every `ask_council` call exactly as in the terminal, including the monthly cap. A full run takes one to two minutes, so the assistant waits for it. Notes an assistant adds end with "(added by Claude Desktop via MCP)" or similar, so you can tell them from your own and remove any you disagree with in `notes.md`.
+Your budget caps apply to every `ask_council` call exactly as in the terminal, including the monthly cap. A full run takes one to two minutes, so the assistant waits for it. Notes an assistant adds end with the name the client gives itself, such as "(added by claude-ai via MCP)" from Claude Desktop, so you can tell them from your own and remove any you disagree with in `notes.md`.
 
 If the server does not appear, check the client's logs. Claude Desktop keeps them in `%APPDATA%\Claude\logs` on Windows and `~/Library/Logs/Claude` on macOS, in a file named `mcp-server-conclave.log`. The most common causes are a wrong Python path, the MCP extra not installed, and a JSON syntax error such as a single `\` in a Windows path.
 

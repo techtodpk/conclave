@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from importlib import resources
 from typing import Protocol
@@ -154,7 +154,48 @@ async def research(
     """Ask every seat the question at the same time. `searches` above 0 allows web search."""
     messages = research_messages(question, today, recall, web=searches > 0)
     return list(
-        await asyncio.gather(*(ask_one(client, s, messages, max_tokens, searches) for s in seats))
+        await asyncio.gather(
+            *(_research_one(client, s, messages, max_tokens, searches) for s in seats)
+        )
+    )
+
+
+SEARCH_NUDGE = (
+    "\n\nYou have not searched yet. Search the web before you answer: look up the facts your "
+    "answer depends on most, and cite the pages you use. Your key claims will be checked "
+    "against those pages, and a claim with no source cannot be checked."
+)
+
+
+def _unsourced(completion: Completion) -> bool:
+    """An answer given without searching or citing anything, when search worked."""
+    return not completion.sources and not completion.searches and completion.search_failed is None
+
+
+async def _research_one(
+    client: ModelClient,
+    seat: Seat,
+    messages: list[dict[str, str]],
+    max_tokens: int,
+    searches: int,
+) -> SeatResult:
+    """One member's answer. If it searched nothing and cited nothing, ask once more to search.
+
+    The second answer replaces the first, and both are paid for. If the second call fails,
+    the first answer stands.
+    """
+    first = await ask_one(client, seat, messages, max_tokens, searches)
+    if not searches or first.completion is None or not _unsourced(first.completion):
+        return first
+    nudged = [*messages[:-1], {**messages[-1], "content": messages[-1]["content"] + SEARCH_NUDGE}]
+    second = await ask_one(client, seat, nudged, max_tokens, searches)
+    if second.completion is None:
+        return first
+    before, after = first.completion.cost_usd, second.completion.cost_usd
+    cost = None if before is None or after is None else before + after
+    return SeatResult(
+        seat=seat,
+        completion=replace(second.completion, cost_usd=cost, asked_to_search=True),
     )
 
 

@@ -2,12 +2,12 @@
 
 **The single source of truth for what Conclave does today, what is being built now, and what is still to come.** Every change that adds, removes or changes a capability updates this file in the same commit.
 
-Last updated: 10 October 2026 · Version 0.7.0 · Latest tag: `milestone-7`
+Last updated: 10 October 2026 · Version 0.7.0 · Latest tag: `milestone-6`
 
 | | |
 | --- | --- |
-| **Done** | Milestones 1 to 5 and 7: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer; a memory per topic that each new question starts from; web search, with key claims checked against the cited pages; an app in the browser with a one-command install and guided setup |
-| **In progress** | Milestone 6: the MCP server, built and awaiting its live run in Claude Desktop |
+| **Done** | Milestones 1 to 7: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer; a memory per topic that each new question starts from; web search, with key claims checked against the cited pages; an MCP server for Claude Desktop; an app in the browser with a one-command install and guided setup |
+| **In progress** | Nothing; milestone 8 is next |
 | **Next** | Milestone 8: running members on your own Claude, Gemini or ChatGPT plan, and a sample topic |
 
 ## Scope
@@ -35,7 +35,7 @@ A change of scope is recorded as a decision record before it is built.
 | 3 | Critique and chairman | Done, 8 Oct 2026 | `milestone-3` |
 | 4 | Store and recall | Done, 8 Oct 2026 | `milestone-4` |
 | 5 | Web search and claim check | Done, 8 Oct 2026 | `milestone-5` |
-| 6 | MCP server | Built, awaiting live run | |
+| 6 | MCP server | Done, 10 Oct 2026 | `milestone-6` |
 | 7 | App and guided install | Done, 10 Oct 2026 | `milestone-7` |
 | 8 | CLI adapters and showcase | Pending | |
 | 9 | Public ranking chart | Pending | |
@@ -123,9 +123,9 @@ Done when members cite live sources and the key claims on the final page are che
 - [x] Budget caps reviewed against measured costs: full runs with search cost $0.17 and $0.28 against a $0.59 ceiling, so the $1.00 default cap stands
 - [ ] `--deep`: moved to follow-ups (decision 0011)
 
-### 6. MCP server: built, awaiting live run
+### 6. MCP server: done
 
-Done when Claude Desktop and Cursor can both search the store and start a run.
+Done when Claude Desktop can search the store and start a run. Cursor was in the original goal; it moved to follow-ups because it is not in use here, and it uses the same server and config entry.
 
 - [x] Tools: `search_research`, `get_topic`, `ask_council` and `add_note`, plus `list_topics` and `get_run` (decision 0012)
 - [x] Runs over stdio with the official MCP Python SDK (version 2), installed as the optional extra `.[mcp]`; started with `conclave mcp`
@@ -133,8 +133,8 @@ Done when Claude Desktop and Cursor can both search the store and start a run.
 - [x] Notes added through MCP are marked with the client's name
 - [x] Tests: every tool in process, and a real stdio session started as a client would
 - [x] Setup steps for Claude Desktop and Cursor in the setup guide
-- [ ] Live run: Claude Desktop reads the `os` topic and starts a quick run
-- [ ] Live run: Cursor connects and lists the tools
+- [x] Live run in Claude Desktop on Windows, connected to the installed `conclave.exe`: listed both topics, answered from the `os` topic's claims and disputes, ran a quick question ($0.01), added a note marked "(added by claude-ai via MCP)", and ran a full question within one tool call (70 s, $0.22, 3 members, 16 sources, 5 of 8 claims verified, memory updated)
+- [ ] Live run in Cursor: moved to follow-ups
 
 ### 7. App and guided install: done
 
@@ -191,14 +191,15 @@ Done when the chart shows at least one public source beside the personal leaderb
 | CI results for milestone 2 unconfirmed | The milestone 2 run took 10.5 minutes and its secret scan passed, but the test job results have not been checked | Check on the Actions page |
 | Cost estimate is a ceiling | The pre-run check assumes every model writes the longest answer allowed and uses every search, so it can refuse runs that would have cost less. A `balanced` full run's ceiling is about $0.59; measured runs with search cost $0.17 and $0.28 | Keep; revisit if it refuses runs that would have fitted |
 | Search limit not always kept | With a limit of 3 searches per answer, GPT-6.1 Sol ran 5 in the second live run. OpenRouter billed it $0.014 in search fees, so the cost was small, and the pre-run ceiling has room for it | Check whether the limit belongs elsewhere in the request; until then the ceiling is an estimate |
-| Full runs inside one tool call | A full `ask_council` call takes one to two minutes. A client that times out tool calls sooner shows an error, though the run still finishes and is saved | Check in the milestone 6 live run; if needed, report progress or return early and let the assistant fetch the result with `get_run` |
+| Full runs inside one tool call | A full `ask_council` call takes one to two minutes. Claude Desktop waited for a 70-second full run without trouble; a client that times out tool calls sooner would show an error, though the run still finishes and is saved | Check if another client times out; if needed, report progress or return early and let the assistant fetch the result with `get_run` |
 | Installer is unsigned | The one-line installer is a script the user runs on trust, like uv's own installer | A signed `.exe` and `.dmg` later, on top of the same steps |
 | `--deep` devil's advocate | One low-cost model argues against the consensus and the chairman answers its strongest point (decision 0005) | Moved from milestone 5; not scheduled |
 | `conclave rebuild <topic>` | Regenerate a topic's summary from all its runs and show how it differs from the current one, as a drift check. Deferred until topics have enough runs to drift | After milestone 5 |
 | Installer not yet run on macOS | `install.sh` is tested in a clean home folder on Linux, and the Windows installer live; neither has run on a Mac | Run it on a Mac when one is available |
 | Codespace not yet opened for real | The `.devcontainer` configuration is checked, but no live Codespace has been opened from the README link | Open one and check the app loads |
-| A member may choose not to search | In the milestone 7 live run Claude Sonnet answered without searching, so none of its claims could be checked against a page. The model decides whether to search (decision 0011) | Watch; if it recurs, require at least one search on full runs |
+| Claude Sonnet did not search | In both full runs on 9 and 10 October Claude Sonnet answered with no searches and no cited pages. Its prompt was 1,500 to 3,200 tokens against 11,000 to 16,000 for members that searched, and no search fee was charged, so it chose not to search: the prompt told members not to search for what they know well | Fixed 10 October: the prompt now requires at least one search, and a member that still answers without searching or citing is asked once more to search (decision 0011). Confirm in the next full run |
 | A retry can go past the cost ceiling | Asking again with reasoning off adds a call the pre-run estimate does not count. It happens only after a failed attempt and costs about one call | Keep; the cap is checked again before each stage |
+| Cursor not yet tried | The MCP server is tested with a real stdio session and live in Claude Desktop, but has not been connected to Cursor | Try it when Cursor is in use; the config entry is the same |
 | No interactive model picker | Profiles are built with `conclave profile add`; an interactive picker may come later | Not scheduled |
 
 ## How to keep this file current

@@ -443,6 +443,8 @@ def _report(
             state = "CUT OFF" if done.cut_off else "ok"
             if done.retried_without_reasoning:
                 state += " (asked again without thinking)"
+            if done.asked_to_search:
+                state += " (asked again to search)"
             web = ""
             if stage == "research" and outcome.searches:
                 if done.search_failed:
