@@ -2,9 +2,9 @@
 
 Each milestone on the [roadmap](README.md#roadmap) is tagged in Git when it is complete. Work in progress and pending tasks are tracked in [project status](docs/STATUS.md).
 
-## Milestone 7: app and guided install (unreleased)
+## Milestone 7: app and guided install, 10 October 2026
 
-Version 0.7.0. Tagged `milestone-7` after its first live run on Windows. Decision record [0013](docs/decisions/0013-local-app-and-guided-install.md) moves a web interface into the scope of v1; the later milestones are renumbered (CLI adapters and showcase are now 8, the public ranking chart 9).
+Version 0.7.0. Tagged `milestone-7`. Live run on Windows: installed with the one-line command from GitHub, setup wizard finished from an empty config, a full four-member question answered in the app ($0.29, 3 of 8 claims verified), and the desktop shortcut opens the app. Not yet run on macOS or in a live Codespace. Decision record [0013](docs/decisions/0013-local-app-and-guided-install.md) moves a web interface into the scope of v1; the later milestones are renumbered (CLI adapters and showcase are now 8, the public ranking chart 9).
 
 - `conclave app` opens Conclave in your browser. It runs on your own computer at `http://127.0.0.1:8765` and answers only to pages from it. Starting it again while it is running just opens the page.
 - A setup wizard on first launch: research folder, OpenRouter key (checked with OpenRouter before it is saved, and never shown again), council, spending limits, and a first question.

@@ -2,12 +2,12 @@
 
 **The single source of truth for what Conclave does today, what is being built now, and what is still to come.** Every change that adds, removes or changes a capability updates this file in the same commit.
 
-Last updated: 10 October 2026 · Version 0.7.0 · Latest tag: `milestone-5`
+Last updated: 10 October 2026 · Version 0.7.0 · Latest tag: `milestone-7`
 
 | | |
 | --- | --- |
-| **Done** | Milestones 1 to 5: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer; a memory per topic that each new question starts from; web search, with key claims checked against the cited pages |
-| **In progress** | Milestone 7: the app and a one-command install, installed from GitHub and run in full on Windows; the desktop shortcut check remains. Milestone 6, the MCP server, is built and awaits its live run in Claude Desktop |
+| **Done** | Milestones 1 to 5 and 7: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer; a memory per topic that each new question starts from; web search, with key claims checked against the cited pages; an app in the browser with a one-command install and guided setup |
+| **In progress** | Milestone 6: the MCP server, built and awaiting its live run in Claude Desktop |
 | **Next** | Milestone 8: running members on your own Claude, Gemini or ChatGPT plan, and a sample topic |
 
 ## Scope
@@ -36,7 +36,7 @@ A change of scope is recorded as a decision record before it is built.
 | 4 | Store and recall | Done, 8 Oct 2026 | `milestone-4` |
 | 5 | Web search and claim check | Done, 8 Oct 2026 | `milestone-5` |
 | 6 | MCP server | Built, awaiting live run | |
-| 7 | App and guided install | Built, awaiting live run | |
+| 7 | App and guided install | Done, 10 Oct 2026 | `milestone-7` |
 | 8 | CLI adapters and showcase | Pending | |
 | 9 | Public ranking chart | Pending | |
 
@@ -136,7 +136,7 @@ Done when Claude Desktop and Cursor can both search the store and start a run.
 - [ ] Live run: Claude Desktop reads the `os` topic and starts a quick run
 - [ ] Live run: Cursor connects and lists the tools
 
-### 7. App and guided install: built, awaiting live run
+### 7. App and guided install: done
 
 Done when someone who has never used a terminal can install Conclave from one copied command, finish setup in the browser, and get a full council answer. Decision 0013.
 
@@ -157,8 +157,9 @@ Done when someone who has never used a terminal can install Conclave from one co
 - [x] Live run on Windows: installed with the one-line command from GitHub (`conclave 0.7.0`), setup wizard finished from an empty config with the key checked live
 - [x] Live run on Windows: a full question from the app, four members, 24 sources, 8 claims checked and 3 verified, 107 s, $0.29
 - [x] A model that spends its whole limit thinking is asked once more with reasoning off, and both attempts are counted in the cost. In the live run DeepSeek's review was lost this way
-- [ ] Desktop shortcut opens the app on Windows
-- [ ] Live run on macOS
+- [x] Desktop shortcut opens the app on Windows
+- [ ] Live run on macOS: moved to follow-ups
+- [ ] "Try it in your browser" in a live Codespace: moved to follow-ups
 
 ### 8. CLI adapters and showcase: pending
 
@@ -194,6 +195,8 @@ Done when the chart shows at least one public source beside the personal leaderb
 | Installer is unsigned | The one-line installer is a script the user runs on trust, like uv's own installer | A signed `.exe` and `.dmg` later, on top of the same steps |
 | `--deep` devil's advocate | One low-cost model argues against the consensus and the chairman answers its strongest point (decision 0005) | Moved from milestone 5; not scheduled |
 | `conclave rebuild <topic>` | Regenerate a topic's summary from all its runs and show how it differs from the current one, as a drift check. Deferred until topics have enough runs to drift | After milestone 5 |
+| Installer not yet run on macOS | `install.sh` is tested in a clean home folder on Linux, and the Windows installer live; neither has run on a Mac | Run it on a Mac when one is available |
+| Codespace not yet opened for real | The `.devcontainer` configuration is checked, but no live Codespace has been opened from the README link | Open one and check the app loads |
 | A member may choose not to search | In the milestone 7 live run Claude Sonnet answered without searching, so none of its claims could be checked against a page. The model decides whether to search (decision 0011) | Watch; if it recurs, require at least one search on full runs |
 | A retry can go past the cost ceiling | Asking again with reasoning off adds a call the pre-run estimate does not count. It happens only after a failed attempt and costs about one call | Keep; the cap is checked again before each stage |
 | No interactive model picker | Profiles are built with `conclave profile add`; an interactive picker may come later | Not scheduled |

@@ -10,8 +10,8 @@
 
 | Capability | Status | Arrives in |
 | --- | --- | --- |
-| An app in your browser: guided setup, live progress, topics, runs, search, spending and settings | Built; first Windows run pending | Milestone 7 |
-| Install with one command, no Python or terminal skills needed | Built; first Windows run pending | Milestone 7 |
+| An app in your browser: guided setup, live progress, topics, runs, search, spending and settings | Works | Milestone 7 |
+| Install with one command, no Python or terminal skills needed | Works on Windows; macOS not yet tried | Milestone 7 |
 | Ask the chairman a question (quick mode) | Works | Milestone 2 |
 | Ask every council member at the same time (`--full`) | Works | Milestone 2 |
 | Save each run as plain files: question, one answer per model, tokens, cost and timings | Works | Milestone 2 |
@@ -236,7 +236,7 @@ The task-level plan for each milestone, with what is done, in progress and pendi
 - [x] **4. Store and recall.** Topic memory read before every question and updated after full runs, search, and a personal leaderboard.
 - [x] **5. Web search and claim check.** Search-enabled members, claim extraction, source fetch, verdicts.
 - [ ] **6. MCP server.** Claude Desktop and Cursor read and write the same store. Built; live run pending.
-- [ ] **7. App and guided install.** A local app in the browser and a one-command install, for people who do not use a terminal. Built; live run pending.
+- [x] **7. App and guided install.** A local app in the browser and a one-command install, for people who do not use a terminal.
 - [ ] **8. CLI adapters and showcase.** Optional subscription routes, a sample topic, measured costs.
 - [ ] **9. Public ranking chart.** Model rankings from published benchmarks beside your own leaderboard.
 
