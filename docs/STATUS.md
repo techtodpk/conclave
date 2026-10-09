@@ -2,12 +2,12 @@
 
 **The single source of truth for what Conclave does today, what is being built now, and what is still to come.** Every change that adds, removes or changes a capability updates this file in the same commit.
 
-Last updated: 9 October 2026 · Version 0.7.0 · Latest tag: `milestone-5`
+Last updated: 10 October 2026 · Version 0.7.0 · Latest tag: `milestone-5`
 
 | | |
 | --- | --- |
 | **Done** | Milestones 1 to 5: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer; a memory per topic that each new question starts from; web search, with key claims checked against the cited pages |
-| **In progress** | Milestone 7: the app and a one-command install, built and tested, awaiting its first run on Windows. Milestone 6, the MCP server, is built and awaits its live run in Claude Desktop |
+| **In progress** | Milestone 7: the app and a one-command install, installed from GitHub and run in full on Windows; the desktop shortcut check remains. Milestone 6, the MCP server, is built and awaits its live run in Claude Desktop |
 | **Next** | Milestone 8: running members on your own Claude, Gemini or ChatGPT plan, and a sample topic |
 
 ## Scope
@@ -152,8 +152,12 @@ Done when someone who has never used a terminal can install Conclave from one co
 - [x] Tests: the API end to end against the simulated OpenRouter, config editing, shortcuts and installers; the installer run in a clean home folder on Linux; every page checked in a browser in light, dark and phone widths
 - [x] Project website on GitHub Pages, from `docs/index.html`: what Conclave does, how far to trust each claim, screenshots, install commands and measured costs
 - [x] "Try it in your browser" through GitHub Codespaces (`.devcontainer`): the app starts by itself and trusts only that Codespace's own forwarded address
-- [ ] Turn on GitHub Pages (Settings, Pages, branch `main`, folder `/docs`) and check the site
-- [ ] Live run on Windows: install from the one-line command, finish the wizard, ask a full question
+- [x] GitHub Pages turned on; the site at techtodpk.github.io/conclave checked: every section, screenshot, menu link and install command
+- [x] Code on GitHub matches the tested code (installers, devcontainer, site, app, docs)
+- [x] Live run on Windows: installed with the one-line command from GitHub (`conclave 0.7.0`), setup wizard finished from an empty config with the key checked live
+- [x] Live run on Windows: a full question from the app, four members, 24 sources, 8 claims checked and 3 verified, 107 s, $0.29
+- [x] A model that spends its whole limit thinking is asked once more with reasoning off, and both attempts are counted in the cost. In the live run DeepSeek's review was lost this way
+- [ ] Desktop shortcut opens the app on Windows
 - [ ] Live run on macOS
 
 ### 8. CLI adapters and showcase: pending
@@ -190,6 +194,8 @@ Done when the chart shows at least one public source beside the personal leaderb
 | Installer is unsigned | The one-line installer is a script the user runs on trust, like uv's own installer | A signed `.exe` and `.dmg` later, on top of the same steps |
 | `--deep` devil's advocate | One low-cost model argues against the consensus and the chairman answers its strongest point (decision 0005) | Moved from milestone 5; not scheduled |
 | `conclave rebuild <topic>` | Regenerate a topic's summary from all its runs and show how it differs from the current one, as a drift check. Deferred until topics have enough runs to drift | After milestone 5 |
+| A member may choose not to search | In the milestone 7 live run Claude Sonnet answered without searching, so none of its claims could be checked against a page. The model decides whether to search (decision 0011) | Watch; if it recurs, require at least one search on full runs |
+| A retry can go past the cost ceiling | Asking again with reasoning off adds a call the pre-run estimate does not count. It happens only after a failed attempt and costs about one call | Keep; the cap is checked again before each stage |
 | No interactive model picker | Profiles are built with `conclave profile add`; an interactive picker may come later | Not scheduled |
 
 ## How to keep this file current

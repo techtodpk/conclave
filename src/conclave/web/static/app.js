@@ -434,6 +434,7 @@ function renderJob(jobId, startInfo) {
           ? [ev.cost !== null && ev.cost !== undefined ? money(ev.cost) : null,
              ev.sources ? plural(ev.sources, "source") : null,
              ev.search_failed ? "answered without search" : null,
+             ev.retried_without_reasoning ? "asked again without thinking" : null,
              ev.cut_off ? "cut off" : null].filter(Boolean).join(" · ")
           : "failed";
         chip.replaceChildren(ev.state === "done" ? "✓ " : "✕ ", short, extra ? ` · ${extra}` : "");

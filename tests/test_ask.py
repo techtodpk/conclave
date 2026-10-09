@@ -1,5 +1,6 @@
 import json
 
+import pytest
 from typer.testing import CliRunner
 
 from conclave.cli import app
@@ -522,3 +523,27 @@ def test_cut_off_answer_is_reported_marked_for_reviewers_and_recorded(workspace,
     gpt = next(c for c in calls if c["stage"] == "research" and c["model"] == "openai/gpt-6.1-sol")
     assert gpt["cut_off"] is True
     assert gpt["reasoning_tokens"] == 900
+
+
+def test_review_that_was_all_thinking_is_asked_again_and_recorded(workspace, openrouter):
+    _init(workspace)
+    workspace.set_key()
+    openrouter.reply(
+        "google/gemini-3.8-flash",
+        answer("", finish_reason="length", reasoning_tokens=2500, cost=0.003),
+        answer("Response A is solid.\n\nRanking: A, B", cost=0.002),
+        stage="critique",
+    )
+
+    result = _ask(workspace, "Q?", "--full")
+
+    assert result.exit_code == 0, result.output
+    assert "asked again without thinking" in result.output
+    (run,) = workspace.runs()
+    calls = _meta(run)["calls"]
+    gemini = next(
+        c for c in calls if c["stage"] == "critique" and c["model"] == "google/gemini-3.8-flash"
+    )
+    assert gemini["status"] == "ok"
+    assert gemini["retried_without_reasoning"] is True
+    assert gemini["cost_usd"] == pytest.approx(0.005)

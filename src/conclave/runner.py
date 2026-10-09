@@ -135,6 +135,7 @@ class _Reporting:
                 "cut_off": done.cut_off,
                 "sources": len(done.sources),
                 "search_failed": bool(done.search_failed),
+                "retried_without_reasoning": done.retried_without_reasoning,
             }
         )
         return done
@@ -943,6 +944,7 @@ def _save_meta(
                 searches=done.searches,
                 sources_cited=len(done.sources),
                 search_failed=done.search_failed,
+                retried_without_reasoning=done.retried_without_reasoning,
                 usage=done.usage,
                 seconds=round(done.seconds, 2),
                 file=call.file,

@@ -15,6 +15,7 @@ Version 0.7.0. Tagged `milestone-7` after its first live run on Windows. Decisio
 - One-command installers, `install.ps1` for Windows and `install.sh` for macOS and Linux. They install uv, which keeps a private copy of Python, install Conclave with the app and MCP extras from GitHub's zip download, add a desktop shortcut (`conclave shortcut`), and open the app. No Python, Git or administrator rights are needed.
 - The app's packages are the optional extra `.[app]`. The command line still needs only two packages.
 - Config changes from the app are small edits that keep your comments; a change that would make the config invalid is refused before it is written. The key is saved in `.env` beside the config.
+- A model that spends its whole length limit on hidden reasoning and writes nothing is asked once more with reasoning off, instead of being dropped. Both attempts are counted in the cost, and the run record, the app and the command line say it was asked again.
 - The runner reports progress as it goes, for the app: each stage, each model call as it starts and finishes, and the claim-checking steps.
 - The setup guide starts with a section for people who do not use a terminal, with screenshots.
 - A project website at techtodpk.github.io/conclave, served free by GitHub Pages from `docs/index.html`.

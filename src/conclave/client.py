@@ -49,6 +49,17 @@ class ModelError(Exception):
         self.status = status
 
 
+class ThoughtOut(ModelError):
+    """The model spent its whole length limit on hidden reasoning and wrote no answer.
+
+    `cost_usd` is what OpenRouter charged for that attempt, so a retry can count it.
+    """
+
+    def __init__(self, message: str, cost_usd: float | None = None) -> None:
+        super().__init__(message)
+        self.cost_usd = cost_usd
+
+
 @dataclass(frozen=True)
 class Source:
     """A web page a model cited, with the excerpt the search returned when there was one."""
@@ -71,6 +82,9 @@ class Completion:
     sources: tuple[Source, ...] = ()  # pages the model cited, in the order first cited
     usage: dict | None = None  # OpenRouter's usage figures as sent, kept for the run record
     search_failed: str | None = None  # why web search failed, when the answer came without it
+    # The first attempt was all reasoning and no answer, so it was asked again with reasoning
+    # off. cost_usd then includes both attempts.
+    retried_without_reasoning: bool = False
 
 
 Sleep = Callable[[float], Awaitable[None]]
@@ -155,13 +169,36 @@ class OpenRouterClient:
             ]
         started = time.monotonic()
         try:
+            return await self._searching(body, started)
+        except ThoughtOut as error:
+            if self._reasoning == "none":
+                raise
+            # Some models think past any allowance. Ask once more with reasoning off rather
+            # than lose this answer.
+            body = {**body, "reasoning": {"effort": "none"}}
+            try:
+                done = await self._searching(body, started)
+            except ThoughtOut:
+                raise ThoughtOut(
+                    "the model used its whole length limit thinking and wrote no answer, "
+                    "even when asked again with reasoning off. Raise run.max_answer_tokens "
+                    "in the config, or choose another model.",
+                    error.cost_usd,
+                ) from None
+            first = error.cost_usd
+            cost = None if done.cost_usd is None or first is None else done.cost_usd + first
+            return replace(done, cost_usd=cost, retried_without_reasoning=True)
+
+    async def _searching(self, body: dict, started: float) -> Completion:
+        """Send the request; if the search service fails, answer without it."""
+        try:
             return await self._post(body, started)
         except ModelError as error:
             if "tools" not in body or "web_search" not in str(error):
                 raise
             # The search service failed, not the model. Answer without searching rather
             # than lose this member, and say so.
-            del body["tools"]
+            body = {key: value for key, value in body.items() if key != "tools"}
             done = await self._post(body, started)
             return replace(done, search_failed=str(error))
 
@@ -237,9 +274,13 @@ def _read(response: httpx.Response, seconds: float) -> Completion:
     cut_off = choice.get("finish_reason") == "length"
     if not isinstance(text, str) or not text.strip():
         if cut_off:
-            raise ModelError(
+            usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+            cost = usage.get("cost")
+            reported = isinstance(cost, int | float) and not isinstance(cost, bool)
+            raise ThoughtOut(
                 "the model used its whole length limit thinking and wrote no answer. "
-                "Lower run.reasoning or raise run.max_answer_tokens in the config."
+                "Lower run.reasoning or raise run.max_answer_tokens in the config.",
+                float(cost) if reported else None,
             )
         raise ModelError("the model returned an empty answer")
 

@@ -168,11 +168,71 @@ def test_finished_answer_is_not_flagged(openrouter):
     assert done.reasoning_tokens == 0
 
 
-def test_all_thinking_and_no_answer_says_what_to_change(openrouter):
+def test_all_thinking_and_no_answer_is_asked_again_without_reasoning(openrouter):
+    openrouter.reply(
+        SONNET.model,
+        answer("", finish_reason="length", reasoning_tokens=500, cost=0.003),
+        answer("The answer.", cost=0.002),
+    )
+
+    done = _complete()
+
+    assert done.text == "The answer."
+    assert done.retried_without_reasoning is True
+    assert done.cost_usd == pytest.approx(0.005)  # both attempts are counted
+    first, second = openrouter.chat_requests
+    assert first["reasoning"] == {"effort": "low"}
+    assert second["reasoning"] == {"effort": "none"}
+    assert second["max_tokens"] == first["max_tokens"]
+
+
+def test_all_thinking_twice_says_what_to_change(openrouter):
     openrouter.reply(SONNET.model, answer("", finish_reason="length", reasoning_tokens=500))
 
-    with pytest.raises(ModelError, match="whole length limit thinking"):
+    with pytest.raises(ModelError, match="even when asked again with reasoning off"):
         _complete()
+    assert len(openrouter.chat_requests) == 2
+
+
+def test_all_thinking_with_reasoning_already_off_is_not_retried(openrouter):
+    openrouter.reply(SONNET.model, answer("", finish_reason="length", reasoning_tokens=500))
+
+    async def go():
+        async with new_client() as http:
+            client = OpenRouterClient(http, KEY, reasoning="none")
+            return await client.complete(SONNET, MESSAGES, 500)
+
+    with pytest.raises(ModelError, match="whole length limit thinking"):
+        asyncio.run(go())
+    assert len(openrouter.chat_requests) == 1
+
+
+def test_retry_without_reasoning_keeps_web_search(openrouter):
+    openrouter.reply(
+        SONNET.model,
+        answer("", finish_reason="length", reasoning_tokens=500),
+        answer("Found it.", cites=[("https://a.example/1", "One", "")], searches=1),
+    )
+
+    async def go():
+        async with new_client() as http:
+            return await OpenRouterClient(http, KEY).complete(SONNET, MESSAGES, 500, searches=2)
+
+    done = asyncio.run(go())
+
+    assert done.retried_without_reasoning is True
+    assert [s.url for s in done.sources] == ["https://a.example/1"]
+    assert all("tools" in body for body in openrouter.chat_requests)
+
+
+def test_retry_cost_unknown_when_either_attempt_has_no_cost(openrouter):
+    openrouter.reply(
+        SONNET.model,
+        answer("", finish_reason="length", reasoning_tokens=500, cost=None),
+        answer("The answer.", cost=0.002),
+    )
+
+    assert _complete().cost_usd is None
 
 
 def test_search_adds_the_web_search_tool_and_reads_citations(openrouter):

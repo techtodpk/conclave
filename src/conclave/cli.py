@@ -441,6 +441,8 @@ def _report(
             if call.cost_source == "estimated":
                 price += " (estimated)"
             state = "CUT OFF" if done.cut_off else "ok"
+            if done.retried_without_reasoning:
+                state += " (asked again without thinking)"
             web = ""
             if stage == "research" and outcome.searches:
                 if done.search_failed:
