@@ -1,0 +1,155 @@
+[
+  {
+    "id": "S1",
+    "url": "https://unity.com/products/pricing-updates",
+    "title": "Unity pricing updates",
+    "cited_by": [
+      "anthropic/claude-sonnet-5.5",
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 1 supported"
+    ]
+  },
+  {
+    "id": "S2",
+    "url": "https://unity.com/en/products/pricing-updates",
+    "title": "Unity pricing updates",
+    "cited_by": [
+      "anthropic/claude-sonnet-5.5"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 1 not found"
+    ]
+  },
+  {
+    "id": "S3",
+    "url": "https://github.com/poingstudios/godot-admob-ios",
+    "title": "Godot AdMob plugin",
+    "cited_by": [
+      "anthropic/claude-sonnet-5.5"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 5 not found",
+      "claim 6 not found"
+    ]
+  },
+  {
+    "id": "S4",
+    "url": "https://patreon.com/poingstudios",
+    "title": "Poing Studios",
+    "cited_by": [
+      "anthropic/claude-sonnet-5.5"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 7 not found"
+    ]
+  },
+  {
+    "id": "S5",
+    "url": "https://docs.unity.com/en-us/grow/levelplay/sdk/unity/mediation-network-guides",
+    "title": "LevelPlay integration",
+    "cited_by": [
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 4 not found"
+    ]
+  },
+  {
+    "id": "S6",
+    "url": "https://docs.unity.com/en-us/iap/introduction",
+    "title": "Unity IAP",
+    "cited_by": [
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": false,
+    "fetch_error": null,
+    "verdicts": []
+  },
+  {
+    "id": "S7",
+    "url": "https://godotengine.org/license/",
+    "title": "Godot license",
+    "cited_by": [
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": false,
+    "fetch_error": null,
+    "verdicts": []
+  },
+  {
+    "id": "S8",
+    "url": "https://godotengine.org/article/godot-mobile-update-apr-2026/",
+    "title": "Godot mobile update",
+    "cited_by": [
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 2 supported",
+      "claim 3 supported"
+    ]
+  },
+  {
+    "id": "S9",
+    "url": "https://unity.com/blog/unity-is-canceling-the-runtime-fee?trk=article-ssr-frontend-pulse_little-text-block",
+    "title": "Unity cancellation announcement",
+    "cited_by": [
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 8 supported"
+    ]
+  },
+  {
+    "id": "S10",
+    "url": "https://docs.unity.com/en-us/grow/levelplay/platform/fundamentals/mediated-networks",
+    "title": "Mediated networks",
+    "cited_by": [
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 4 supported"
+    ]
+  },
+  {
+    "id": "S11",
+    "url": "https://docs.unity3d.com/2023.2/Documentation/Manual/com.unity.services.levelplay.html",
+    "title": "Unity Pricing",
+    "cited_by": [
+      "google/gemini-3.8-flash"
+    ],
+    "fetched": false,
+    "fetch_error": null,
+    "verdicts": []
+  },
+  {
+    "id": "S12",
+    "url": "https://forum.godotengine.org/t/is-there-a-way-to-use-unity-ads-into-godot/95369",
+    "title": "Godot Engine ironSource discussion",
+    "cited_by": [
+      "google/gemini-3.8-flash"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 5 not found"
+    ]
+  }
+]

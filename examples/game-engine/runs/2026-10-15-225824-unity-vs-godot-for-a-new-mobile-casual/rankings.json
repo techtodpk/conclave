@@ -1,0 +1,68 @@
+{
+  "responses": {
+    "A": "anthropic/claude-sonnet-5.5",
+    "B": "openai/gpt-6.1-sol",
+    "C": "google/gemini-3.8-flash"
+  },
+  "reviews": [
+    {
+      "reviewer": "anthropic/claude-sonnet-5.5",
+      "own_response": "A",
+      "reviewed": [
+        "B",
+        "C"
+      ],
+      "status": "ok",
+      "ranking": [
+        "B",
+        "C"
+      ]
+    },
+    {
+      "reviewer": "openai/gpt-6.1-sol",
+      "own_response": "B",
+      "reviewed": [
+        "A",
+        "C"
+      ],
+      "status": "ok",
+      "ranking": [
+        "A",
+        "C"
+      ]
+    },
+    {
+      "reviewer": "google/gemini-3.8-flash",
+      "own_response": "C",
+      "reviewed": [
+        "A",
+        "B"
+      ],
+      "status": "ok",
+      "ranking": [
+        "B",
+        "A"
+      ]
+    }
+  ],
+  "standings": [
+    {
+      "response": "B",
+      "model": "openai/gpt-6.1-sol",
+      "average_position": 1.0,
+      "votes": 2
+    },
+    {
+      "response": "A",
+      "model": "anthropic/claude-sonnet-5.5",
+      "average_position": 1.5,
+      "votes": 2
+    },
+    {
+      "response": "C",
+      "model": "google/gemini-3.8-flash",
+      "average_position": 2.0,
+      "votes": 2
+    }
+  ]
+}

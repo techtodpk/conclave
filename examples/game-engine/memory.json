@@ -1,0 +1,184 @@
+{
+  "topic": "game-engine",
+  "claims": [
+    {
+      "id": "C1",
+      "text": "Unity canceled its Runtime Fee.",
+      "label": "verified",
+      "added": "2026-10-15",
+      "added_run": "2026-10-15-225824-unity-vs-godot-for-a-new-mobile-casual",
+      "updated": null,
+      "updated_run": null,
+      "history": [],
+      "retired": null,
+      "retired_run": null,
+      "retired_reason": null
+    },
+    {
+      "id": "C2",
+      "text": "Under Unity's 2026 pricing, Unity Personal is free while the company's total annual revenue plus funding stays under $200,000, which is not a per-game threshold, and Unity Pro costs $2,310 per seat per year when prepaid.",
+      "label": "agreed but unchecked",
+      "added": "2026-10-15",
+      "added_run": "2026-10-15-225824-unity-vs-godot-for-a-new-mobile-casual",
+      "updated": "2026-10-15",
+      "updated_run": "2026-10-15-230725-for-a-two-person-team-shipping-a-casual",
+      "history": [
+        {
+          "date": "2026-10-15",
+          "run": "2026-10-15-230725-for-a-two-person-team-shipping-a-casual",
+          "text": "Under Unity's 2026 pricing, Unity Personal is free up to $200,000 in revenue and funding, and Unity Pro costs $2,310 per seat per year when prepaid.",
+          "reason": "The new run's checked Unity page shows the threshold counts total company revenue plus funding rather than per-game revenue."
+        }
+      ],
+      "retired": null,
+      "retired_run": null,
+      "retired_reason": null
+    },
+    {
+      "id": "C3",
+      "text": "The Godot engine is MIT-licensed and permits commercial games with no royalties or revenue thresholds.",
+      "label": "verified",
+      "added": "2026-10-15",
+      "added_run": "2026-10-15-225824-unity-vs-godot-for-a-new-mobile-casual",
+      "updated": null,
+      "updated_run": null,
+      "history": [],
+      "retired": null,
+      "retired_run": null,
+      "retired_reason": null
+    },
+    {
+      "id": "C4",
+      "text": "Unity IAP provides a unified first-party purchasing API that covers both the Apple App Store and Google Play.",
+      "label": "verified",
+      "added": "2026-10-15",
+      "added_run": "2026-10-15-225824-unity-vs-godot-for-a-new-mobile-casual",
+      "updated": null,
+      "updated_run": null,
+      "history": [],
+      "retired": null,
+      "retired_run": null,
+      "retired_reason": null
+    },
+    {
+      "id": "C5",
+      "text": "Godot's April 2026 mobile update lists plugin coverage, performance, testing and mobile workflows as areas that still need work.",
+      "label": "verified",
+      "added": "2026-10-15",
+      "added_run": "2026-10-15-225824-unity-vs-godot-for-a-new-mobile-casual",
+      "updated": null,
+      "updated_run": null,
+      "history": [],
+      "retired": null,
+      "retired_run": null,
+      "retired_reason": null
+    },
+    {
+      "id": "C6",
+      "text": "According to an AppRadar blog, Unity runs about 70% of top mobile games.",
+      "label": "agreed but unchecked",
+      "added": "2026-10-15",
+      "added_run": "2026-10-15-225824-unity-vs-godot-for-a-new-mobile-casual",
+      "updated": null,
+      "updated_run": null,
+      "history": [],
+      "retired": null,
+      "retired_run": null,
+      "retired_reason": null
+    },
+    {
+      "id": "C7",
+      "text": "For mobile games, Unity tends to suit heavier 3D on mid-range phones, while Godot suits 2D and lighter 3D.",
+      "label": "agreed but unchecked",
+      "added": "2026-10-15",
+      "added_run": "2026-10-15-225824-unity-vs-godot-for-a-new-mobile-casual",
+      "updated": null,
+      "updated_run": null,
+      "history": [],
+      "retired": null,
+      "retired_run": null,
+      "retired_reason": null
+    },
+    {
+      "id": "C8",
+      "text": "Two Unity Pro seats for three years at unchanged prepaid prices of $2,310 per seat per year cost about $13,860.",
+      "label": "agreed but unchecked",
+      "added": "2026-10-15",
+      "added_run": "2026-10-15-230725-for-a-two-person-team-shipping-a-casual",
+      "updated": null,
+      "updated_run": null,
+      "history": [],
+      "retired": null,
+      "retired_run": null,
+      "retired_reason": null
+    },
+    {
+      "id": "C9",
+      "text": "Unity LevelPlay officially supports ad mediation with major networks, including AdMob and AppLovin.",
+      "label": "verified",
+      "added": "2026-10-15",
+      "added_run": "2026-10-15-230725-for-a-two-person-team-shipping-a-casual",
+      "updated": null,
+      "updated_run": null,
+      "history": [],
+      "retired": null,
+      "retired_run": null,
+      "retired_reason": null
+    },
+    {
+      "id": "C10",
+      "text": "The Godot Foundation maintains and is improving the core Google Play Billing and StoreKit 2 in-app purchase plugins for Godot.",
+      "label": "verified",
+      "added": "2026-10-15",
+      "added_run": "2026-10-15-230725-for-a-two-person-team-shipping-a-casual",
+      "updated": null,
+      "updated_run": null,
+      "history": [],
+      "retired": null,
+      "retired_run": null,
+      "retired_reason": null
+    },
+    {
+      "id": "C11",
+      "text": "For a two-person mobile team with equal experience in Unity and Godot, Unity likely has the lower risk-adjusted three-year total cost, but this is an engineering judgment about integration labour rather than a measured result.",
+      "label": "agreed but unchecked",
+      "added": "2026-10-15",
+      "added_run": "2026-10-15-230725-for-a-two-person-team-shipping-a-casual",
+      "updated": null,
+      "updated_run": null,
+      "history": [],
+      "retired": null,
+      "retired_run": null,
+      "retired_reason": null
+    }
+  ],
+  "disputes": [
+    {
+      "id": "D1",
+      "text": "Whether Unity has first-party or official integrations with major ad networks, such as LevelPlay mediation, while Godot mostly relies on community plugins, is unconfirmed because the checker could not verify it.",
+      "opened": "2026-10-15",
+      "opened_run": "2026-10-15-225824-unity-vs-godot-for-a-new-mobile-casual",
+      "resolved": "2026-10-15",
+      "resolved_run": "2026-10-15-230725-for-a-two-person-team-shipping-a-casual",
+      "resolution": "The Unity side is settled: LevelPlay officially mediates major ad networks such as AdMob and AppLovin, which is verified. The Godot side is still disputed and is carried forward as a new open dispute."
+    },
+    {
+      "id": "D2",
+      "text": "Whether Godot's baseline Android export size is roughly 15\u201320 MB is unsettled, and no current build-size benchmark was found.",
+      "opened": "2026-10-15",
+      "opened_run": "2026-10-15-225824-unity-vs-godot-for-a-new-mobile-casual",
+      "resolved": null,
+      "resolved_run": null,
+      "resolution": null
+    },
+    {
+      "id": "D3",
+      "text": "Whether Godot has no official ad mediation and relies only on community plugins or custom native bridges remains disputed.",
+      "opened": "2026-10-15",
+      "opened_run": "2026-10-15-230725-for-a-two-person-team-shipping-a-casual",
+      "resolved": null,
+      "resolved_run": null,
+      "resolution": null
+    }
+  ]
+}

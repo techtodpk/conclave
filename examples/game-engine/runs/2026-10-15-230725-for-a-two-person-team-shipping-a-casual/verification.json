@@ -1,0 +1,144 @@
+{
+  "checker": "anthropic/claude-opus-5.5",
+  "claims": [
+    {
+      "number": 1,
+      "text": "Unity Personal is free for companies with under $200,000 in revenue and funding, and Unity Pro costs $2,310 per seat per year when prepaid.",
+      "responses": [
+        "A",
+        "B",
+        "C"
+      ],
+      "sources": [
+        "https://unity.com/products/pricing-updates",
+        "https://unity.com/en/products/pricing-updates",
+        "https://docs.unity3d.com/2023.2/Documentation/Manual/com.unity.services.levelplay.html"
+      ],
+      "disagreement": true,
+      "verdict": "supported",
+      "source": "https://unity.com/products/pricing-updates",
+      "quote": "Unity Pro is required if you have over $200,000 in total annual revenue and funding.",
+      "note": "The $2,310/yr prepaid figure is listed as 2026 pricing. Personal being free is implied by the threshold and the 'Free' tier label.",
+      "label": "verified"
+    },
+    {
+      "number": 2,
+      "text": "The Godot Foundation is maintaining and improving core Google Play Billing and StoreKit 2 in-app purchase plugins.",
+      "responses": [
+        "B"
+      ],
+      "sources": [
+        "https://godotengine.org/article/godot-mobile-update-apr-2026/"
+      ],
+      "disagreement": true,
+      "verdict": "supported",
+      "source": "https://godotengine.org/article/godot-mobile-update-apr-2026/",
+      "quote": "The Godot Foundation has decided to begin improving and maintaining the core plugins such as Godot Google Play Billing, Godot Google Play Games Services, and Godot StoreKit 2",
+      "note": "",
+      "label": "verified"
+    },
+    {
+      "number": 3,
+      "text": "Godot's April 2026 mobile update identifies mobile plugin coverage, testing and workflow as areas that still need work.",
+      "responses": [
+        "A",
+        "B"
+      ],
+      "sources": [
+        "https://godotengine.org/article/godot-mobile-update-apr-2026/"
+      ],
+      "disagreement": false,
+      "verdict": "supported",
+      "source": "https://godotengine.org/article/godot-mobile-update-apr-2026/",
+      "quote": "continued improvements to rendering, performance, testing infrastructure, plugin coverage, and development workflows",
+      "note": "",
+      "label": "verified"
+    },
+    {
+      "number": 4,
+      "text": "Unity LevelPlay officially supports mediation integrations with major ad networks including Google AdMob and AppLovin.",
+      "responses": [
+        "B",
+        "C"
+      ],
+      "sources": [
+        "https://docs.unity.com/en-us/grow/levelplay/sdk/unity/mediation-network-guides",
+        "https://docs.unity.com/en-us/grow/levelplay/platform/fundamentals/mediated-networks",
+        "https://docs.unity3d.com/2023.2/Documentation/Manual/com.unity.services.levelplay.html"
+      ],
+      "disagreement": false,
+      "verdict": "supported",
+      "source": "https://docs.unity.com/en-us/grow/levelplay/platform/fundamentals/mediated-networks",
+      "quote": "integrating with leading ad networks such as ironSource Ads, Unity Ads, AppLovin, Google AdMob, and Pangle, among others.",
+      "note": "",
+      "label": "verified"
+    },
+    {
+      "number": 5,
+      "text": "Godot has no official ad mediation support such as LevelPlay and relies on community plugins or custom native bridges.",
+      "responses": [
+        "A",
+        "C"
+      ],
+      "sources": [
+        "https://forum.godotengine.org/t/is-there-a-way-to-use-unity-ads-into-godot/95369",
+        "https://github.com/poingstudios/godot-admob-ios"
+      ],
+      "disagreement": true,
+      "verdict": "not found",
+      "source": null,
+      "quote": "",
+      "note": "The passages show that community plugins exist. None of them states that Godot lacks official mediation support.",
+      "label": "disputed"
+    },
+    {
+      "number": 6,
+      "text": "Godot's AdMob support comes from an MIT-licensed community plugin by Poing Studios covering Android and iOS with UMP consent and ATT handling.",
+      "responses": [
+        "A"
+      ],
+      "sources": [
+        "https://github.com/poingstudios/godot-admob-ios"
+      ],
+      "disagreement": false,
+      "verdict": "not found",
+      "source": null,
+      "quote": "",
+      "note": "The passages do not mention an MIT license or ATT handling. UMP support appears only in the S5 claim context, not in this excerpt.",
+      "label": "single model"
+    },
+    {
+      "number": 7,
+      "text": "Poing Studios lists in-app purchase support only as a future plan.",
+      "responses": [
+        "A"
+      ],
+      "sources": [
+        "https://patreon.com/poingstudios"
+      ],
+      "disagreement": false,
+      "verdict": "not found",
+      "source": null,
+      "quote": "",
+      "note": "S4 lists In-App Purchase under 'For future'. The word 'only' is not established by the passage.",
+      "label": "single model"
+    },
+    {
+      "number": 8,
+      "text": "Unity canceled the Runtime Fee.",
+      "responses": [
+        "A",
+        "B"
+      ],
+      "sources": [
+        "https://unity.com/blog/unity-is-canceling-the-runtime-fee?trk=article-ssr-frontend-pulse_little-text-block"
+      ],
+      "disagreement": false,
+      "verdict": "supported",
+      "source": "https://unity.com/blog/unity-is-canceling-the-runtime-fee?trk=article-ssr-frontend-pulse_little-text-block",
+      "quote": "we\u2019ve made the decision to cancel the Runtime Fee for our games customers, effective immediately.",
+      "note": "The cancellation applies to games customers only.",
+      "label": "verified"
+    }
+  ]
+}

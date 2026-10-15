@@ -162,7 +162,7 @@ If the terminal says `conclave` is not recognised, use `python -m conclave --ver
 Expected output:
 
 ```
-conclave 0.7.0
+conclave 0.8.0
 ```
 
 ## 5. First run

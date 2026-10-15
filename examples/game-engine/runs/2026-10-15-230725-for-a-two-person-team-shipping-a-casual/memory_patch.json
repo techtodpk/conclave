@@ -1,0 +1,53 @@
+{
+  "proposed": {
+    "add": [
+      {
+        "text": "Two Unity Pro seats for three years at unchanged prepaid prices of $2,310 per seat per year cost about $13,860.",
+        "label": "agreed but unchecked"
+      },
+      {
+        "text": "Unity LevelPlay officially supports ad mediation with major networks, including AdMob and AppLovin.",
+        "label": "verified"
+      },
+      {
+        "text": "The Godot Foundation maintains and is improving the core Google Play Billing and StoreKit 2 in-app purchase plugins for Godot.",
+        "label": "verified"
+      },
+      {
+        "text": "For a two-person mobile team with equal experience in Unity and Godot, Unity likely has the lower risk-adjusted three-year total cost, but this is an engineering judgment about integration labour rather than a measured result.",
+        "label": "agreed but unchecked"
+      }
+    ],
+    "change": [
+      {
+        "id": "C2",
+        "text": "Under Unity's 2026 pricing, Unity Personal is free while the company's total annual revenue plus funding stays under $200,000, which is not a per-game threshold, and Unity Pro costs $2,310 per seat per year when prepaid.",
+        "label": "verified",
+        "reason": "The new run's checked Unity page shows the threshold counts total company revenue plus funding rather than per-game revenue."
+      }
+    ],
+    "retire": [],
+    "open_disputes": [
+      {
+        "text": "Whether Godot has no official ad mediation and relies only on community plugins or custom native bridges remains disputed."
+      }
+    ],
+    "resolve_disputes": [
+      {
+        "id": "D1",
+        "resolution": "The Unity side is settled: LevelPlay officially mediates major ad networks such as AdMob and AppLovin, which is verified. The Godot side is still disputed and is carried forward as a new open dispute."
+      }
+    ]
+  },
+  "applied": [
+    "- Added C8: Two Unity Pro seats for three years at unchanged prepaid prices of $2,310 per seat per year cost about $13,860. [agreed but unchecked] (may repeat C2)",
+    "- Added C9: Unity LevelPlay officially supports ad mediation with major networks, including AdMob and AppLovin. [verified]",
+    "- Added C10: The Godot Foundation maintains and is improving the core Google Play Billing and StoreKit 2 in-app purchase plugins for Godot. [verified]",
+    "- Added C11: For a two-person mobile team with equal experience in Unity and Godot, Unity likely has the lower risk-adjusted three-year total cost, but this is an engineering judgment about integration labour rather than a measured result. [agreed but unchecked]",
+    "- Changed C2: Under Unity's 2026 pricing, Unity Personal is free while the company's total annual revenue plus funding stays under $200,000, which is not a per-game threshold, and Unity Pro costs $2,310 per seat per year when prepaid. [agreed but unchecked] (was: Under Unity's 2026 pricing, Unity Personal is free up to $200,000 in revenue and funding, and Unity Pro costs $2,310 per seat per year when prepaid.)",
+    "- Opened dispute D3: Whether Godot has no official ad mediation and relies only on community plugins or custom native bridges remains disputed.",
+    "- Resolved dispute D1: Whether Unity has first-party or official integrations with major ad networks, such as LevelPlay mediation, while Godot mostly relies on community plugins, is unconfirmed because the checker could not verify it. (The Unity side is settled: LevelPlay officially mediates major ad networks such as AdMob and AppLovin, which is verified. The Godot side is still disputed and is carried forward as a new open dispute.)"
+  ],
+  "skipped": [],
+  "approved": null
+}

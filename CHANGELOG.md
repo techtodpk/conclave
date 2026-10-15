@@ -2,9 +2,9 @@
 
 Each milestone on the [roadmap](README.md#roadmap) is tagged in Git when it is complete. Work in progress and pending tasks are tracked in [project status](docs/STATUS.md).
 
-## Milestone 8: command-line routes and showcase (in progress)
+## Milestone 8: command-line routes and showcase, 15 October 2026
 
-Decision record [0014](docs/decisions/0014-command-line-routes.md). Live run on Windows: a full council with all three members on their plans and Claude Opus as chairman and checker took 112 s and cost $0.19, all of it Opus; 6 of 8 key claims verified.
+Version 0.8.0. Tagged `milestone-8`. Decision record [0014](docs/decisions/0014-command-line-routes.md). Live run on Windows: a full council with all three members on their plans and Claude Opus as chairman and checker took 112 s and cost $0.19, all of it Opus; 6 of 8 key claims verified.
 
 - A council seat with `route = "cli"` runs on your own plan: Claude Code for Claude models, Codex CLI for GPT models, Antigravity CLI for Gemini models. Each call runs the tool once in an empty temporary folder, with web search as its only tool, and reads its JSON reply.
 - Seats on your plan cost nothing against the caps and are left out of the pre-run estimate. Their calls are recorded at $0 with the source "plan", with the tokens used and, for Claude Code, what the call would have cost at API prices. A run with every seat on a plan needs no OpenRouter key.
@@ -14,6 +14,8 @@ Decision record [0014](docs/decisions/0014-command-line-routes.md). Live run on 
 - The app's council editor has a "Run on your own plan" box for Claude, GPT and Gemini seats, and the live progress and run pages show "on your plan" instead of a cost.
 - Tests can never start a real command-line tool.
 - A council name typed in the app is made valid instead of refused: "My Plan" is saved as `my-plan`.
+- Antigravity cites pages through Google redirect links. Once a page is fetched, its real address replaces the redirect in the run's sources and one-page answer.
+- A real sample topic, `examples/game-engine`: two full runs with all three members on their plans, and a "Real example" section in the README with each run's time and cost.
 
 ## Milestone 7: app and guided install, 10 October 2026
 

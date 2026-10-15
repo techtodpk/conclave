@@ -4,7 +4,7 @@
 
 **An LLM council that remembers.** Several models research the same question, critique each other, and save what they conclude to a research store on your own machine. Every later question on that topic starts from what the council already worked out.
 
-> **Status: milestone 7 of 9, version 0.7.0.** Conclave asks a council of AI models the same question. In a full run each member searches the web and cites its sources, the members review each other's answers with the authors hidden, a checker tests the key claims against the cited pages, and a chairman writes a one-page answer. It keeps a memory per topic, and every new question on a topic starts from what the council already concluded. It runs as an app in your browser, installed with one command, or from the command line; Claude Desktop and Cursor can use it too. See [what works today](#what-works-today), and [project status](docs/STATUS.md) for what is being built now.
+> **Status: milestone 8 of 9, version 0.8.0.** Conclave asks a council of AI models the same question. In a full run each member searches the web and cites its sources, the members review each other's answers with the authors hidden, a checker tests the key claims against the cited pages, and a chairman writes a one-page answer. It keeps a memory per topic, and every new question on a topic starts from what the council already concluded. Members can run through the API or on your own Claude, ChatGPT or Google AI plan. It runs as an app in your browser, installed with one command, or from the command line; Claude Desktop and Cursor can use it too. See [a real example](#a-real-example), [what works today](#what-works-today), and [project status](docs/STATUS.md) for what is being built now.
 
 ## What works today
 
@@ -30,6 +30,17 @@
 **"Verified" means a cited page states the claim, not that the claim is true.** Every key claim on the one-page answer carries a label, worked out in code from the evidence: verified, agreed but unchecked, single source, single model or disputed. `verification.md` shows the quote behind every verdict, so you can judge the page for yourself. Quick runs and `--no-search` runs answer from the models' training data and say so.
 
 Milestone 2 was run against the live OpenRouter API on Windows with Python 3.14 on 8 October 2026. Milestone 3 was run against the live API the same day. Milestone 4 was run against the live API the same day: a second question on a topic started from what the first had concluded, and updated it. Milestone 5 was run against the live API the same day: it settled an open dispute from an earlier run against Python's own documentation. The automated tests run in CI on Windows, macOS and Linux with every push.
+
+## A real example
+
+[`examples/game-engine`](examples/game-engine/) is a real topic, copied from a research store with nothing edited except Google's redirect links, which are replaced by the pages they lead to. Two full runs on 15 October 2026, with Claude Code, Codex CLI and Antigravity CLI as members on their own plans, and Claude Opus 5.5 as chairman and checker:
+
+| Question | One-page answer | Claims verified | Time | Cost |
+| --- | --- | --- | --- | --- |
+| Unity vs Godot for a new mobile casual game in 2026? | [final.md](examples/game-engine/runs/2026-10-15-225824-unity-vs-godot-for-a-new-mobile-casual/final.md) | 6 of 8 | 112 s | $0.19 |
+| For a two-person team shipping on Android and iOS with ads and in-app purchases, which engine has the lower total cost and risk over three years? | [final.md](examples/game-engine/runs/2026-10-15-230725-for-a-two-person-team-shipping-a-casual/final.md) | 5 of 8 | 123 s | $0.19 |
+
+The second run started from the first one's conclusions ([`recall.md`](examples/game-engine/runs/2026-10-15-230725-for-a-two-person-team-shipping-a-casual/recall.md)), settled part of an open dispute with a verified source, and added four claims. [`summary.md`](examples/game-engine/summary.md) is what the topic now holds, and each run's `verification.md` shows the quote behind every verdict.
 
 ## Why this exists
 
@@ -194,7 +205,7 @@ Model ids in the default config were checked against the [OpenRouter model list]
 
 ## Cost
 
-Conclave calls models through pay-per-use APIs. Subscriptions to chat apps generally do not cover API use, so this is a separate cost, and the design keeps it low.
+Conclave calls models through pay-per-use APIs. Subscriptions to chat apps generally do not cover API use, so this is a separate cost, and the design keeps it low. Members can also run on your own Claude, ChatGPT or Google AI plan through the vendors' command-line tools, at no cost against Conclave's caps; see [Run members on your own plan](docs/SETUP.md#run-members-on-your-own-plan).
 
 - **One key.** An [OpenRouter](https://openrouter.ai/) key reaches every model. Credits are prepaid, so spending stops when the balance runs out.
 - **Budget caps.** The config sets a cap per full run, per quick run and per month. Before anything is sent, Conclave works out the most a run could cost and refuses it if that is above the cap.
@@ -212,6 +223,8 @@ Every run records its real cost in `meta.json` and prints it. First measured run
 | Full, with recall and memory update (milestone 4) | Same council, on a topic with 6 stored claims | $0.090 | about 55 s in total |
 | Full, with web search and claim checks (milestone 5) | Two of the three members answered; 11 pages cited, 8 claims checked | $0.171 | about 80 s in total |
 | Full, with web search and claim checks, after fixes | All three members; 8 searches, 17 pages cited, 8 claims checked | $0.285 | about 100 s in total |
+| Full, members on their own plans (milestone 8) | Claude Code, Codex CLI and Antigravity CLI as members; Claude Opus 5.5 as chairman and checker on OpenRouter; 14 sources, 6 of 8 claims verified | $0.190 | 112 s in total |
+| Full follow-up on the same topic (milestone 8) | Same council, starting from 7 stored claims and 2 disputes; 12 sources, 5 of 8 claims verified | $0.195 | 123 s in total |
 
 The first full run cost $0.066, about 9% of its $0.75 cap. The chairman's page was the largest single cost ($0.021), because it reads every answer and review. Since milestone 5 a full run also searches the web and makes two claim-checking calls. The pre-run ceiling for the `balanced` profile is about $0.59, assuming every member uses every search and every call writes as much as it may, and the default full-run cap is $1.00. Measured runs with search cost $0.17 and $0.28, including OpenRouter's search fees. The research stage is now the largest cost, because each member reads its search results.
 
@@ -237,7 +250,7 @@ The task-level plan for each milestone, with what is done, in progress and pendi
 - [x] **5. Web search and claim check.** Search-enabled members, claim extraction, source fetch, verdicts.
 - [x] **6. MCP server.** Claude Desktop and Cursor read and write the same store.
 - [x] **7. App and guided install.** A local app in the browser and a one-command install, for people who do not use a terminal.
-- [ ] **8. CLI adapters and showcase.** Optional subscription routes, a sample topic, measured costs.
+- [x] **8. CLI adapters and showcase.** Members on your own plan through Claude Code, Codex CLI and Antigravity CLI; a real sample topic; measured costs.
 - [ ] **9. Public ranking chart.** Model rankings from published benchmarks beside your own leaderboard.
 
 ## Development

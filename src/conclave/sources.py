@@ -172,28 +172,45 @@ def html_to_text(html: str) -> tuple[str, str]:
     return " ".join(parser.title.split()), text
 
 
+# Search services that cite a page through a redirect of their own. Once the page has been
+# fetched, its real address replaces the redirect, which says nothing and may expire.
+REDIRECTORS = ("vertexaisearch.cloud.google.com",)
+
+
 async def fetch_page(http: httpx.AsyncClient, url: str) -> tuple[str | None, str]:
     """(text, error). Text is None when the page could not be read."""
+    text, error, _ = await _fetch(http, url)
+    return text, error
+
+
+async def _fetch(http: httpx.AsyncClient, url: str) -> tuple[str | None, str, str]:
+    """(text, error, the address the page was found at after any redirects)."""
+    final = url
     try:
         async with http.stream("GET", url) as response:
+            final = str(response.url)
             if response.status_code != 200:
-                return None, f"HTTP {response.status_code}"
+                return None, f"HTTP {response.status_code}", final
             kind = response.headers.get("content-type", "").lower()
             if kind and "html" not in kind and "text/plain" not in kind:
-                return None, f"not a web page ({kind.split(';')[0]})"
+                return None, f"not a web page ({kind.split(';')[0]})", final
             body = b""
             async for chunk in response.aiter_bytes():
                 body += chunk
                 if len(body) > FETCH_MAX_BYTES:
-                    return None, "page too large"
+                    return None, "page too large", final
             encoding = response.encoding or "utf-8"
     except httpx.HTTPError as error:
-        return None, type(error).__name__
+        return None, type(error).__name__, final
     raw = body.decode(encoding, errors="replace")
     text = html_to_text(raw)[1] if "html" in kind or "<html" in raw[:2000].lower() else raw
     if len(text) < 200:
-        return None, "almost no readable text (the page may need JavaScript)"
-    return text, ""
+        return None, "almost no readable text (the page may need JavaScript)", final
+    return text, "", final
+
+
+def is_redirect_link(url: str) -> bool:
+    return (urlsplit(url).hostname or "").lower() in REDIRECTORS
 
 
 async def fetch_all(http: httpx.AsyncClient, pages: list[CitedSource]) -> None:
@@ -202,7 +219,9 @@ async def fetch_all(http: httpx.AsyncClient, pages: list[CitedSource]) -> None:
 
     async def one(page: CitedSource) -> None:
         async with gate:
-            text, error = await fetch_page(http, page.url)
+            text, error, final = await _fetch(http, page.url)
+        if is_redirect_link(page.url) and not is_redirect_link(final):
+            page.url = normalise(final)
         page.fetched = text is not None
         page.text = text or ""
         page.fetch_error = error or None

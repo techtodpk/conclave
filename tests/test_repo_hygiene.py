@@ -22,3 +22,18 @@ def test_env_example_holds_no_real_key():
     for line in (REPO / ".env.example").read_text(encoding="utf-8").splitlines():
         if line.startswith("OPENROUTER_API_KEY"):
             assert line.strip() == "OPENROUTER_API_KEY="
+
+
+def test_examples_hold_no_private_details():
+    """The sample topics are public: no local paths, keys, sessions or redirect links."""
+    import re
+
+    forbidden = re.compile(
+        r"[A-Za-z]:\\\\|/Users/|/home/|sk-or-|OPENROUTER_API_KEY=\S|session_id|conversation_id"
+        r"|thread_id|vertexaisearch\.cloud\.google\.com",
+    )
+    files = [p for p in (REPO / "examples").rglob("*") if p.is_file()]
+    assert files
+    for path in files:
+        found = forbidden.search(path.read_text(encoding="utf-8"))
+        assert found is None, f"{path.relative_to(REPO)}: {found.group(0)}"

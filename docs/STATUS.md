@@ -2,12 +2,12 @@
 
 **The single source of truth for what Conclave does today, what is being built now, and what is still to come.** Every change that adds, removes or changes a capability updates this file in the same commit.
 
-Last updated: 15 October 2026 · Version 0.7.0 · Latest tag: `milestone-6`
+Last updated: 15 October 2026 · Version 0.8.0 · Latest tag: `milestone-8`
 
 | | |
 | --- | --- |
-| **Done** | Milestones 1 to 7: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer; a memory per topic that each new question starts from; web search, with key claims checked against the cited pages; an MCP server for Claude Desktop; an app in the browser with a one-command install and guided setup |
-| **In progress** | Milestone 8: command-line routes run live on all three tools; the sample topic and published numbers remain |
+| **Done** | Milestones 1 to 8: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer; a memory per topic that each new question starts from; web search, with key claims checked against the cited pages; an MCP server for Claude Desktop; an app in the browser with a one-command install and guided setup; members on the user's own plan through Claude Code, Codex CLI and Antigravity CLI |
+| **In progress** | Nothing; milestone 9 is next |
 | **Next** | Milestone 9: the public ranking chart |
 
 ## Scope
@@ -37,7 +37,7 @@ A change of scope is recorded as a decision record before it is built.
 | 5 | Web search and claim check | Done, 8 Oct 2026 | `milestone-5` |
 | 6 | MCP server | Done, 10 Oct 2026 | `milestone-6` |
 | 7 | App and guided install | Done, 10 Oct 2026 | `milestone-7` |
-| 8 | CLI adapters and showcase | In progress | |
+| 8 | CLI adapters and showcase | Done, 15 Oct 2026 | `milestone-8` |
 | 9 | Public ranking chart | Pending | |
 
 A milestone is done when every task below is ticked, the tests and CI pass, it has been run against the live API, and the README, setup guide, changelog and this file describe it.
@@ -161,7 +161,7 @@ Done when someone who has never used a terminal can install Conclave from one co
 - [ ] Live run on macOS: moved to follow-ups
 - [ ] "Try it in your browser" in a live Codespace: moved to follow-ups
 
-### 8. CLI adapters and showcase: in progress
+### 8. CLI adapters and showcase: done
 
 Done when a full run works with Claude on the user's own plan, and the README shows a real sample topic with its numbers.
 
@@ -174,8 +174,10 @@ Done when a full run works with Claude on the user's own plan, and the README sh
 - [x] Tests from each tool's real output; tests can never start a real tool
 - [x] Live run on Windows, 15 October: a full council with Claude Code, Codex CLI and Antigravity CLI as members on their plans and Claude Opus as chairman and checker on OpenRouter. All three answered and reviewed; 14 sources, 10 pages read, 6 of 8 key claims verified; 112 s; $0.19, all of it Opus
 - [x] Council names typed in the app are made valid ("My Plan" becomes `my-plan`) instead of refused
-- [ ] A sample topic folder in the repository
-- [ ] Measured cost and time per run published in the README
+- [x] Live follow-up on the same topic: started from 7 stored claims and 2 disputes, settled part of one dispute with a verified source, added four claims; 5 of 8 claims verified; 123 s; $0.19
+- [x] Antigravity's Google redirect links replaced by the real page address once the page is fetched
+- [x] A sample topic in the repository, `examples/game-engine`: both runs, copied unedited apart from the redirect links, and checked for names, paths and keys
+- [x] Measured cost and time per run published in the README
 
 ### 9. Public ranking chart: pending
 

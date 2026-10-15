@@ -136,3 +136,30 @@ def test_passage_windows_are_kept_whole():
 
     assert "A warning is printed then. A warning is printed then. A warning" in passage
     assert all(line.rstrip().endswith(".") or line == "[...]" for line in passage.split("\n"))
+
+
+def test_a_search_redirect_is_replaced_by_the_page_it_leads_to():
+    from conclave.sources import CitedSource, fetch_all
+
+    body = "<p>" + "Readable words. " * 30 + "</p>"
+    redirect = "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQ123"
+
+    def handler(request):
+        if request.url.host == "vertexaisearch.cloud.google.com":
+            return httpx.Response(
+                302, headers={"location": "https://docs.godotengine.org/en/stable/?utm_source=x"}
+            )
+        return httpx.Response(200, headers={"content-type": "text/html"}, text=body)
+
+    async def go(pages):
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport, follow_redirects=True) as http:
+            await fetch_all(http, pages)
+
+    followed = CitedSource(url=redirect)
+    ordinary = CitedSource(url="https://a.example/moved")
+    asyncio.run(go([followed, ordinary]))
+
+    assert followed.url == "https://docs.godotengine.org/en/stable"  # normalised, tag dropped
+    assert followed.fetched
+    assert ordinary.url == "https://a.example/moved"  # only search redirects are replaced

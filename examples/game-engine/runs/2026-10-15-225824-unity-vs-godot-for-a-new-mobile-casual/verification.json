@@ -1,0 +1,149 @@
+{
+  "checker": "anthropic/claude-opus-5.5",
+  "claims": [
+    {
+      "number": 1,
+      "text": "Unity offers first-party or official integrations with major mobile ad networks, including ad mediation through LevelPlay, while Godot mostly relies on community-maintained plugins.",
+      "responses": [
+        "A",
+        "B",
+        "C"
+      ],
+      "sources": [
+        "https://www.cubix.co/blog/unity-vs-godot-a-game-developers-guide/",
+        "https://5stardesigners.com/blog/best-android-game-engine-2026-unity-vs-godot-compared/",
+        "https://unity.com/products/levelplay",
+        "https://aplusgamesstudio.com/blog/unity-vs-godot-mobile-games"
+      ],
+      "disagreement": true,
+      "verdict": "not found",
+      "source": null,
+      "quote": "",
+      "note": "S2 says Unity connects directly with AdMob, AppLovin and Unity Ads and that Godot uses community plugins, but no passage mentions LevelPlay mediation.",
+      "label": "disputed"
+    },
+    {
+      "number": 2,
+      "text": "Unity canceled its Runtime Fee.",
+      "responses": [
+        "A",
+        "B"
+      ],
+      "sources": [
+        "https://tech-insider.org/godot-vs-unity-2026/",
+        "https://unity.com/blog/terms-update-runtime-fee-cancellation?trk=article-ssr-frontend-pulse_little-text-block"
+      ],
+      "disagreement": false,
+      "verdict": "supported",
+      "source": "https://unity.com/blog/terms-update-runtime-fee-cancellation?trk=article-ssr-frontend-pulse_little-text-block",
+      "quote": "We updated the Editor Software Terms to remove language related to the recently canceled Unity Runtime Fee",
+      "note": "",
+      "label": "verified"
+    },
+    {
+      "number": 3,
+      "text": "Under Unity's 2026 pricing, Unity Personal is free up to $200,000 in revenue and funding, and Unity Pro costs $2,310 per seat per year when prepaid.",
+      "responses": [
+        "A",
+        "B",
+        "C"
+      ],
+      "sources": [
+        "https://tech-insider.org/godot-vs-unity-2026/",
+        "https://unity.com/products/pricing-updates",
+        "https://ziva.sh/blogs/godot-vs-unity"
+      ],
+      "disagreement": true,
+      "verdict": "supported",
+      "source": "https://unity.com/products/pricing-updates",
+      "quote": "$2,310/yr per seat, prepaid yearly",
+      "note": "The same page says Personal is available to customers with up to $200,000 in revenue and funding and is free.",
+      "label": "verified"
+    },
+    {
+      "number": 4,
+      "text": "Godot is MIT-licensed and permits commercial games with no engine royalties or revenue thresholds.",
+      "responses": [
+        "A",
+        "B",
+        "C"
+      ],
+      "sources": [
+        "https://tech-insider.org/godot-vs-unity-2026/",
+        "https://github.com/godotengine/godot/blob/master/README.md",
+        "https://godotengine.org/license/",
+        "https://ziva.sh/blogs/godot-vs-unity"
+      ],
+      "disagreement": false,
+      "verdict": "supported",
+      "source": "https://tech-insider.org/godot-vs-unity-2026/",
+      "quote": "free to use for any purpose, including commercial games, with no revenue thresholds, no royalties, and no subscription fees of any kind.",
+      "note": "",
+      "label": "verified"
+    },
+    {
+      "number": 5,
+      "text": "Godot's April 2026 mobile update identifies plugin coverage, performance, testing, and mobile workflows as areas still needing work.",
+      "responses": [
+        "B"
+      ],
+      "sources": [
+        "https://godotengine.org/article/godot-mobile-update-apr-2026/"
+      ],
+      "disagreement": false,
+      "verdict": "supported",
+      "source": "https://godotengine.org/article/godot-mobile-update-apr-2026/",
+      "quote": "continued improvements to rendering, performance, testing infrastructure, plugin coverage, and development workflows",
+      "note": "",
+      "label": "verified"
+    },
+    {
+      "number": 6,
+      "text": "Unity's IAP provides a unified purchasing API supporting both the Apple App Store and Google Play.",
+      "responses": [
+        "B"
+      ],
+      "sources": [
+        "https://docs.unity.com/en-us/iap/introduction"
+      ],
+      "disagreement": false,
+      "verdict": "supported",
+      "source": "https://docs.unity.com/en-us/iap/introduction",
+      "quote": "Unity IAP supports built-in platform stores (Apple App Store and Google Play Store)",
+      "note": "",
+      "label": "verified"
+    },
+    {
+      "number": 7,
+      "text": "Godot's baseline Android export size is roughly 15\u201320 MB.",
+      "responses": [
+        "C"
+      ],
+      "sources": [
+        "https://www.vectorviral.com/blog-details?slug=unity-vs-godot-mobile-game-startups-2026"
+      ],
+      "disagreement": true,
+      "verdict": "not found",
+      "source": null,
+      "quote": "",
+      "note": "S14 says a minimal Android build 'can be as small as 15-20 MB', which is a lower bound rather than a typical baseline size.",
+      "label": "disputed"
+    },
+    {
+      "number": 8,
+      "text": "Unity is used by roughly 70% of top mobile games.",
+      "responses": [
+        "A"
+      ],
+      "sources": [
+        "https://appradar.com/blog/mobile-game-engines-development-platforms"
+      ],
+      "disagreement": true,
+      "verdict": "supported",
+      "source": "https://appradar.com/blog/mobile-game-engines-development-platforms",
+      "quote": "Unity runs about 70% of top mobile games",
+      "note": "",
+      "label": "verified"
+    }
+  ]
+}

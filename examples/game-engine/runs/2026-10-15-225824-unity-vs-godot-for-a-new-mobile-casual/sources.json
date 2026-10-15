@@ -1,0 +1,178 @@
+[
+  {
+    "id": "S1",
+    "url": "https://www.cubix.co/blog/unity-vs-godot-a-game-developers-guide/",
+    "title": "Cubix comparison",
+    "cited_by": [
+      "anthropic/claude-sonnet-5.5"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 1 not found"
+    ]
+  },
+  {
+    "id": "S2",
+    "url": "https://5stardesigners.com/blog/best-android-game-engine-2026-unity-vs-godot-compared/",
+    "title": "5StarDesigners",
+    "cited_by": [
+      "anthropic/claude-sonnet-5.5"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 1 not found"
+    ]
+  },
+  {
+    "id": "S3",
+    "url": "https://tech-insider.org/godot-vs-unity-2026/",
+    "title": "Tech-Insider",
+    "cited_by": [
+      "anthropic/claude-sonnet-5.5"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 2 not found",
+      "claim 3 not found",
+      "claim 4 supported"
+    ]
+  },
+  {
+    "id": "S4",
+    "url": "https://appradar.com/blog/mobile-game-engines-development-platforms",
+    "title": "AppRadar",
+    "cited_by": [
+      "anthropic/claude-sonnet-5.5"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 8 supported"
+    ]
+  },
+  {
+    "id": "S5",
+    "url": "https://unity.com/products/levelplay",
+    "title": "Unity LevelPlay",
+    "cited_by": [
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": false,
+    "fetch_error": null,
+    "verdicts": []
+  },
+  {
+    "id": "S6",
+    "url": "https://docs.unity.com/en-us/iap/introduction",
+    "title": "Unity IAP",
+    "cited_by": [
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 6 supported"
+    ]
+  },
+  {
+    "id": "S7",
+    "url": "https://github.com/godotengine/godot/blob/master/README.md",
+    "title": "Godot repository",
+    "cited_by": [
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 4 not found"
+    ]
+  },
+  {
+    "id": "S8",
+    "url": "https://godotengine.org/article/godot-mobile-update-apr-2026/",
+    "title": "Godot mobile update",
+    "cited_by": [
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 5 supported"
+    ]
+  },
+  {
+    "id": "S9",
+    "url": "https://unity.com/blog/terms-update-runtime-fee-cancellation?trk=article-ssr-frontend-pulse_little-text-block",
+    "title": "Runtime Fee cancellation",
+    "cited_by": [
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 2 supported"
+    ]
+  },
+  {
+    "id": "S10",
+    "url": "https://unity.com/products/pricing-updates",
+    "title": "2026 pricing",
+    "cited_by": [
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 3 supported"
+    ]
+  },
+  {
+    "id": "S11",
+    "url": "https://godotengine.org/license/",
+    "title": "Godot license",
+    "cited_by": [
+      "openai/gpt-6.1-sol"
+    ],
+    "fetched": false,
+    "fetch_error": null,
+    "verdicts": []
+  },
+  {
+    "id": "S12",
+    "url": "https://ziva.sh/blogs/godot-vs-unity",
+    "title": "ziva.sh",
+    "cited_by": [
+      "google/gemini-3.8-flash"
+    ],
+    "fetched": false,
+    "fetch_error": null,
+    "verdicts": []
+  },
+  {
+    "id": "S13",
+    "url": "https://aplusgamesstudio.com/blog/unity-vs-godot-mobile-games",
+    "title": "aplusgamesstudio.com",
+    "cited_by": [
+      "google/gemini-3.8-flash"
+    ],
+    "fetched": false,
+    "fetch_error": null,
+    "verdicts": []
+  },
+  {
+    "id": "S14",
+    "url": "https://www.vectorviral.com/blog-details?slug=unity-vs-godot-mobile-game-startups-2026",
+    "title": "vectorviral.com",
+    "cited_by": [
+      "google/gemini-3.8-flash"
+    ],
+    "fetched": true,
+    "fetch_error": null,
+    "verdicts": [
+      "claim 7 not found"
+    ]
+  }
+]

@@ -1,0 +1,395 @@
+{
+  "conclave_version": "0.7.0",
+  "question": "For a two-person team shipping a casual game on Android and iOS with ads and in-app purchases, which engine has the lower total cost and risk over three years?",
+  "topic": "game-engine",
+  "mode": "full",
+  "profile": "plan",
+  "stages": [
+    "research",
+    "critique",
+    "verify",
+    "synthesis",
+    "memory"
+  ],
+  "stopped": null,
+  "notes": [],
+  "recall": {
+    "claims": 7,
+    "disputes": 2,
+    "notes": false,
+    "truncated": false
+  },
+  "memory_changes": [
+    "- Added C8: Two Unity Pro seats for three years at unchanged prepaid prices of $2,310 per seat per year cost about $13,860. [agreed but unchecked] (may repeat C2)",
+    "- Added C9: Unity LevelPlay officially supports ad mediation with major networks, including AdMob and AppLovin. [verified]",
+    "- Added C10: The Godot Foundation maintains and is improving the core Google Play Billing and StoreKit 2 in-app purchase plugins for Godot. [verified]",
+    "- Added C11: For a two-person mobile team with equal experience in Unity and Godot, Unity likely has the lower risk-adjusted three-year total cost, but this is an engineering judgment about integration labour rather than a measured result. [agreed but unchecked]",
+    "- Changed C2: Under Unity's 2026 pricing, Unity Personal is free while the company's total annual revenue plus funding stays under $200,000, which is not a per-game threshold, and Unity Pro costs $2,310 per seat per year when prepaid. [agreed but unchecked] (was: Under Unity's 2026 pricing, Unity Personal is free up to $200,000 in revenue and funding, and Unity Pro costs $2,310 per seat per year when prepaid.)",
+    "- Opened dispute D3: Whether Godot has no official ad mediation and relies only on community plugins or custom native bridges remains disputed.",
+    "- Resolved dispute D1: Whether Unity has first-party or official integrations with major ad networks, such as LevelPlay mediation, while Godot mostly relies on community plugins, is unconfirmed because the checker could not verify it. (The Unity side is settled: LevelPlay officially mediates major ad networks such as AdMob and AppLovin, which is verified. The Godot side is still disputed and is carried forward as a new open dispute.)"
+  ],
+  "web_search": {
+    "max_searches_per_member": 3
+  },
+  "evidence": {
+    "searches": null,
+    "distinct_sources": 12,
+    "pages_fetched": 9,
+    "claims_checked": 8,
+    "verified": 5,
+    "contradicted": 0,
+    "share_verified": 0.62
+  },
+  "started": "2026-10-15T23:07:25+05:30",
+  "finished": "2026-10-15T23:09:28+05:30",
+  "calls": [
+    {
+      "stage": "research",
+      "model": "anthropic/claude-sonnet-5.5",
+      "route": "cli",
+      "role": "member",
+      "response": "A",
+      "status": "ok",
+      "prompt_tokens": 36089,
+      "completion_tokens": 3157,
+      "cost_usd": 0.0,
+      "cost_source": "plan",
+      "reasoning_tokens": 448,
+      "cut_off": false,
+      "searches": 2,
+      "sources_cited": 4,
+      "search_failed": null,
+      "retried_without_reasoning": false,
+      "asked_to_search": false,
+      "usage": {
+        "tool": "claude",
+        "model": "claude-sonnet-5-5",
+        "models": [
+          "claude-haiku-5-5",
+          "claude-sonnet-5-5"
+        ],
+        "turns": 3,
+        "api_value_usd": 0.0529877
+      },
+      "seconds": 23.73,
+      "file": "answers/anthropic--claude-sonnet-5.5.md"
+    },
+    {
+      "stage": "research",
+      "model": "openai/gpt-6.1-sol",
+      "route": "cli",
+      "role": "member",
+      "response": "B",
+      "status": "ok",
+      "prompt_tokens": 75970,
+      "completion_tokens": 1216,
+      "cost_usd": 0.0,
+      "cost_source": "plan",
+      "reasoning_tokens": 0,
+      "cut_off": false,
+      "searches": 2,
+      "sources_cited": 7,
+      "search_failed": null,
+      "retried_without_reasoning": false,
+      "asked_to_search": false,
+      "usage": {
+        "tool": "codex",
+        "model": "gpt-6.1-sol",
+        "cached_input_tokens": 48256
+      },
+      "seconds": 40.33,
+      "file": "answers/openai--gpt-6.1-sol.md"
+    },
+    {
+      "stage": "research",
+      "model": "google/gemini-3.8-flash",
+      "route": "cli",
+      "role": "member",
+      "response": "C",
+      "status": "ok",
+      "prompt_tokens": 28640,
+      "completion_tokens": 1150,
+      "cost_usd": 0.0,
+      "cost_source": "plan",
+      "reasoning_tokens": 0,
+      "cut_off": false,
+      "searches": null,
+      "sources_cited": 2,
+      "search_failed": null,
+      "retried_without_reasoning": false,
+      "asked_to_search": false,
+      "usage": {
+        "tool": "agy",
+        "model": "gemini-3.8-flash-low",
+        "turns": 1
+      },
+      "seconds": 33.72,
+      "file": "answers/google--gemini-3.8-flash.md"
+    },
+    {
+      "stage": "critique",
+      "model": "anthropic/claude-sonnet-5.5",
+      "route": "cli",
+      "role": "reviewer",
+      "response": "A",
+      "status": "ok",
+      "prompt_tokens": 4335,
+      "completion_tokens": 754,
+      "cost_usd": 0.0,
+      "cost_source": "plan",
+      "reasoning_tokens": 0,
+      "cut_off": false,
+      "searches": 0,
+      "sources_cited": 0,
+      "search_failed": null,
+      "retried_without_reasoning": false,
+      "asked_to_search": false,
+      "usage": {
+        "tool": "claude",
+        "model": "claude-sonnet-5-5",
+        "models": [
+          "claude-sonnet-5-5"
+        ],
+        "turns": 1,
+        "api_value_usd": 0.024876
+      },
+      "seconds": 7.54,
+      "file": "critiques/anthropic--claude-sonnet-5.5.md"
+    },
+    {
+      "stage": "critique",
+      "model": "openai/gpt-6.1-sol",
+      "route": "cli",
+      "role": "reviewer",
+      "response": "B",
+      "status": "ok",
+      "prompt_tokens": 19825,
+      "completion_tokens": 517,
+      "cost_usd": 0.0,
+      "cost_source": "plan",
+      "reasoning_tokens": 0,
+      "cut_off": false,
+      "searches": 0,
+      "sources_cited": 0,
+      "search_failed": null,
+      "retried_without_reasoning": false,
+      "asked_to_search": false,
+      "usage": {
+        "tool": "codex",
+        "model": "gpt-6.1-sol",
+        "cached_input_tokens": 13440
+      },
+      "seconds": 19.03,
+      "file": "critiques/openai--gpt-6.1-sol.md"
+    },
+    {
+      "stage": "critique",
+      "model": "google/gemini-3.8-flash",
+      "route": "cli",
+      "role": "reviewer",
+      "response": "C",
+      "status": "ok",
+      "prompt_tokens": 15082,
+      "completion_tokens": 325,
+      "cost_usd": 0.0,
+      "cost_source": "plan",
+      "reasoning_tokens": 0,
+      "cut_off": false,
+      "searches": null,
+      "sources_cited": 0,
+      "search_failed": null,
+      "retried_without_reasoning": false,
+      "asked_to_search": false,
+      "usage": {
+        "tool": "agy",
+        "model": "gemini-3.8-flash-low",
+        "turns": 1
+      },
+      "seconds": 14.37,
+      "file": "critiques/google--gemini-3.8-flash.md"
+    },
+    {
+      "stage": "verify",
+      "model": "anthropic/claude-opus-5.5",
+      "route": "api",
+      "role": "checker",
+      "status": "ok",
+      "prompt_tokens": 8316,
+      "completion_tokens": 575,
+      "cost_usd": 0.044764,
+      "cost_source": "reported",
+      "reasoning_tokens": 0,
+      "cut_off": false,
+      "searches": null,
+      "sources_cited": 0,
+      "search_failed": null,
+      "retried_without_reasoning": false,
+      "asked_to_search": false,
+      "usage": {
+        "prompt_tokens": 8316,
+        "completion_tokens": 575,
+        "total_tokens": 8891,
+        "cost": 0.044764,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.044764,
+          "upstream_inference_prompt_cost": 0.033264,
+          "upstream_inference_completions_cost": 0.0115
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "seconds": 7.96,
+      "file": null
+    },
+    {
+      "stage": "verify",
+      "model": "anthropic/claude-opus-5.5",
+      "route": "api",
+      "role": "checker",
+      "status": "ok",
+      "prompt_tokens": 9317,
+      "completion_tokens": 688,
+      "cost_usd": 0.051028,
+      "cost_source": "reported",
+      "reasoning_tokens": 0,
+      "cut_off": false,
+      "searches": null,
+      "sources_cited": 0,
+      "search_failed": null,
+      "retried_without_reasoning": false,
+      "asked_to_search": false,
+      "usage": {
+        "prompt_tokens": 9317,
+        "completion_tokens": 688,
+        "total_tokens": 10005,
+        "cost": 0.051028,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.051028,
+          "upstream_inference_prompt_cost": 0.037268,
+          "upstream_inference_completions_cost": 0.01376
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "seconds": 8.53,
+      "file": null
+    },
+    {
+      "stage": "synthesis",
+      "model": "anthropic/claude-opus-5.5",
+      "route": "api",
+      "role": "chairman",
+      "status": "ok",
+      "prompt_tokens": 9006,
+      "completion_tokens": 1619,
+      "cost_usd": 0.068404,
+      "cost_source": "reported",
+      "reasoning_tokens": 0,
+      "cut_off": false,
+      "searches": null,
+      "sources_cited": 0,
+      "search_failed": null,
+      "retried_without_reasoning": false,
+      "asked_to_search": false,
+      "usage": {
+        "prompt_tokens": 9006,
+        "completion_tokens": 1619,
+        "total_tokens": 10625,
+        "cost": 0.068404,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.068404,
+          "upstream_inference_prompt_cost": 0.036024,
+          "upstream_inference_completions_cost": 0.03238
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "seconds": 17.93,
+      "file": "final.md"
+    },
+    {
+      "stage": "memory",
+      "model": "anthropic/claude-opus-5.5",
+      "route": "api",
+      "role": "chairman",
+      "status": "ok",
+      "prompt_tokens": 2747,
+      "completion_tokens": 981,
+      "cost_usd": 0.030608,
+      "cost_source": "reported",
+      "reasoning_tokens": 370,
+      "cut_off": false,
+      "searches": null,
+      "sources_cited": 0,
+      "search_failed": null,
+      "retried_without_reasoning": false,
+      "asked_to_search": false,
+      "usage": {
+        "prompt_tokens": 2747,
+        "completion_tokens": 981,
+        "total_tokens": 3728,
+        "cost": 0.030608,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.030608,
+          "upstream_inference_prompt_cost": 0.010988,
+          "upstream_inference_completions_cost": 0.01962
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 370,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "seconds": 9.73,
+      "file": null
+    }
+  ],
+  "totals": {
+    "prompt_tokens": 209327,
+    "completion_tokens": 10982,
+    "cost_usd": 0.194804,
+    "answers": 3,
+    "failures": 0
+  },
+  "budget": {
+    "cap_usd": 0.75,
+    "worst_case_estimate_usd": 0.437516
+  }
+}
