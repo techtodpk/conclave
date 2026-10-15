@@ -285,3 +285,19 @@ def workspace(tmp_path, monkeypatch):
             monkeypatch.setenv("OPENROUTER_API_KEY", KEY)
 
     return Workspace()
+
+
+@pytest.fixture(autouse=True)
+def no_real_command_line_tools(monkeypatch):
+    """Never start a real claude, codex or agy: they would spend the developer's plan.
+
+    Tests that need a tool installed pass their own finder and runner to CliClient, or
+    replace these with monkeypatch.
+    """
+    import conclave.cli_tools
+
+    def refuse(*_args, **_kwargs):
+        raise AssertionError("a test tried to run a real command-line tool")
+
+    monkeypatch.setattr(conclave.cli_tools, "find", lambda tool: None)
+    monkeypatch.setattr(conclave.cli_tools, "run_process", refuse)

@@ -116,6 +116,10 @@ const routes = {
   setup: renderSetup,
 };
 
+function seatName(profile, id) {
+  return (profile.on_plan || []).includes(id) ? `${id} (on your plan)` : id;
+}
+
 async function router() {
   clearInterval(pollTimer);
   const parts = location.hash.replace(/^#\/?/, "").split("/").map(decodeURIComponent);
@@ -431,7 +435,7 @@ function renderJob(jobId, startInfo) {
           || s.chips.appendChild(h("span", { class: "chip" }));
         chip.className = "chip " + (ev.state === "done" ? "done" : "failed");
         const extra = ev.state === "done"
-          ? [ev.cost !== null && ev.cost !== undefined ? money(ev.cost) : null,
+          ? [ev.route === "cli" ? "on your plan" : ev.cost !== null && ev.cost !== undefined ? money(ev.cost) : null,
              ev.sources ? plural(ev.sources, "source") : null,
              ev.search_failed ? "answered without search" : null,
              ev.retried_without_reasoning ? "asked again without thinking" : null,
@@ -623,7 +627,7 @@ async function renderRun(topic, name) {
       h("thead", {}, h("tr", {}, h("th", {}, "Stage"), h("th", {}, "Model"), h("th", {}, "Result"), h("th", { class: "num" }, "Time"), h("th", { class: "num" }, "Cost"))),
       h("tbody", {}, ...r.calls.map(c => h("tr", {}, h("td", {}, c.stage), h("td", {}, c.model),
         h("td", { class: "small" }, c.status === "ok" ? "ok" : c.error || c.status),
-        h("td", { class: "num" }, c.seconds ? `${c.seconds} s` : "–"), h("td", { class: "num" }, money(c.cost_usd)))))),
+        h("td", { class: "num" }, c.seconds ? `${c.seconds} s` : "–"), h("td", { class: "num" }, c.cost_source === "plan" ? "your plan" : money(c.cost_usd)))))),
     ...(r.notes || []).map(n => h("div", { class: "notice warn small" }, n)))));
   setView(head, facts, tabs(names, (i) => draws[i]()), body);
 }
@@ -717,17 +721,37 @@ async function renderSettings() {
           try { s = await api(`/api/councils/${encodeURIComponent(p.name)}`, { method: "DELETE" }); drawCouncils(); toast("Council deleted."); }
           catch (e) { msg.replaceChildren(errorBox(e.message)); }
         } }, "Delete") : null)),
-    h("div", { class: "small" }, h("b", {}, "Members: "), p.members.join(", ")),
-    h("div", { class: "small" }, h("b", {}, "Writes the answer: "), p.chairman, h("b", {}, "  ·  Checks claims: "), p.checker),
+    h("div", { class: "small" }, h("b", {}, "Members: "), p.members.map(m => seatName(p, m)).join(", ")),
+    h("div", { class: "small" }, h("b", {}, "Writes the answer: "), seatName(p, p.chairman), h("b", {}, "  ·  Checks claims: "), seatName(p, p.checker)),
     p.shared_vendors.length ? h("div", { class: "notice warn small" }, `More than one member comes from ${p.shared_vendors.join(", ")}. Models from one lab tend to share blind spots.`) : null)));
   drawCouncils();
   const editorSlot = h("div");
+  const toolFor = id => (s.tools || []).find(t => t.vendor === id.split("/")[0]);
 
   function councilEditor(existing) {
     let chosen = existing ? [...existing.members] : [];
     let chair = existing ? existing.chairman : "";
     let checker = existing ? existing.checker : "";
+    let onPlan = new Set(existing ? existing.on_plan || [] : []);
+    const planEl = h("div");
+    const drawPlan = () => {
+      const ids = [...new Set([...chosen, chair, checker].filter(Boolean))].filter(id => toolFor(id));
+      planEl.replaceChildren(...(ids.length ? ids.map(id => {
+        const tool = toolFor(id);
+        const box = h("input", { type: "checkbox", id: `plan-${id}`, checked: onPlan.has(id), disabled: !tool.installed && !onPlan.has(id) });
+        box.addEventListener("change", () => { box.checked ? onPlan.add(id) : onPlan.delete(id); });
+        return h("div", {}, h("label", { class: "check" }, box, h("span", {}, `${id} through ${tool.name}`)),
+          tool.installed ? null : h("div", { class: "hint" }, `${tool.name} is not installed. Install: ${tool.install.replace(/`/g, "")}. Then ${tool.login.replace(/`/g, "")}.`));
+      }) : [h("span", { class: "muted small" }, "Claude, GPT and Gemini models can run on your own plan instead of OpenRouter.")]));
+    };
     const name = h("input", { type: "text", id: "cname", value: existing ? existing.name : "", disabled: !!existing, placeholder: "e.g. mine" });
+    const nameHint = h("div", { class: "hint" }, "A short name, for example plan or mine.");
+    const cleanName = text => text.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^[-_]+|[-_]+$/g, "").slice(0, 40).replace(/[-_]+$/, "");
+    name.addEventListener("input", () => {
+      const clean = cleanName(name.value);
+      nameHint.textContent = !name.value.trim() ? "A short name, for example plan or mine."
+        : clean === name.value ? "Looks good." : clean ? `Will be saved as “${clean}”.` : "Use letters or digits, for example plan.";
+    });
     const filter = h("input", { type: "search", placeholder: "Filter models, e.g. claude, gemini, deepseek" });
     const pickedEl = h("div");
     const chairSel = h("select", { id: "chair" });
@@ -740,6 +764,7 @@ async function renderSettings() {
       const opts = [...new Set([...chosen, chair, checker].filter(Boolean))];
       const fill = (sel, val) => sel.replaceChildren(h("option", { value: "" }, "Choose…"), ...[...new Set([...opts, ...models.map(m => m.id)])].map(id => h("option", { value: id, selected: id === val }, id)));
       fill(chairSel, chair); fill(checkSel, checker || chair);
+      drawPlan();
     };
     const drawTable = () => {
       const f = filter.value.toLowerCase();
@@ -749,12 +774,12 @@ async function renderSettings() {
         h("td", { class: "num small" }, `$${m.prompt.toFixed(2)} / $${m.completion.toFixed(2)}`),
         h("td", { class: "num" }, h("button", { type: "button", onclick: () => { chosen = chosen.includes(m.id) ? chosen.filter(x => x !== m.id) : [...chosen, m.id]; drawPicked(); drawTable(); } }, chosen.includes(m.id) ? "Remove" : "Add")))));
     };
-    chairSel.addEventListener("change", () => { chair = chairSel.value; });
-    checkSel.addEventListener("change", () => { checker = checkSel.value; });
+    chairSel.addEventListener("change", () => { chair = chairSel.value; drawPlan(); });
+    checkSel.addEventListener("change", () => { checker = checkSel.value; drawPlan(); });
     filter.addEventListener("input", drawTable);
     const panel = h("div", { class: "card" },
       h("h2", {}, existing ? `Edit “${existing.name}”` : "New council"),
-      h("div", { class: "field" }, h("label", { for: "cname" }, "Name"), name, h("div", { class: "hint" }, "Lowercase letters, digits, - and _.")),
+      h("div", { class: "field" }, h("label", { for: "cname" }, "Name"), name, nameHint),
       h("div", { class: "field" }, h("label", {}, "Members"), pickedEl),
       h("div", { class: "field" }, filter),
       h("div", { class: "picker" }, h("table", { class: "list" }, h("thead", {}, h("tr", {}, h("th", {}, "Model"), h("th", { class: "num" }, "$ per million tokens in / out"), h("th", {}))), tableBody)),
@@ -762,12 +787,15 @@ async function renderSettings() {
         h("div", { class: "field" }, h("label", { for: "chair" }, "Chairman (writes the one-page answer)"), chairSel),
         h("div", { class: "field" }, h("label", { for: "checker" }, "Checker (tests claims against sources)"), checkSel)),
       h("p", { class: "small muted" }, "Pick members from different labs: models from one lab tend to share blind spots."),
+      h("div", { class: "field" }, h("label", {}, "Run on your own plan"),
+        h("div", { class: "hint" }, "Ticked models are answered by the vendor's own app (Claude Code, Codex or Antigravity) on your subscription, at no cost against your Conclave limits. Personal use only; check your plan's terms."),
+        planEl),
       err,
       h("div", { class: "row" },
         h("button", { class: "primary", onclick: async () => {
           err.replaceChildren();
           try {
-            s = await api("/api/councils", { method: "POST", body: { name: name.value, members: chosen, chairman: chairSel.value, checker: checkSel.value, replace: !!existing } });
+            s = await api("/api/councils", { method: "POST", body: { name: name.value, members: chosen, chairman: chairSel.value, checker: checkSel.value, on_plan: [...onPlan], replace: !!existing } });
             editorSlot.replaceChildren(); drawCouncils(); def.replaceChildren(...s.profiles.map(p => h("option", { value: p.name, selected: p.name === s.run.default_profile }, p.name)));
             toast("Council saved.");
           } catch (e) { err.replaceChildren(errorBox(e.message)); }

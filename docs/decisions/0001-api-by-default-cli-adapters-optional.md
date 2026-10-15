@@ -1,6 +1,6 @@
 # 0001: API by default, subscription command-line tools as optional adapters
 
-Date: 2026-10-07. Status: accepted.
+Date: 2026-10-07. Status: accepted. The adapters are specified in [0014](0014-command-line-routes.md), which replaces Gemini CLI with Antigravity CLI.
 
 ## Context
 

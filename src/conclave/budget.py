@@ -44,9 +44,12 @@ def worst_case_cost(
     members: list[Member], catalog: dict[str, ModelInfo], prompt_tokens: int, max_tokens: int
 ) -> float:
     """The most a stage could cost: every model reads the prompt, uses all its room for
-    reasoning, and writes the longest answer allowed."""
+    reasoning, and writes the longest answer allowed. Seats on the user's own plan
+    (route "cli") cost nothing against the caps."""
     total = 0.0
     for member in members:
+        if member.route != "api":
+            continue
         info = catalog.get(member.model)
         if info is None:
             continue
@@ -103,7 +106,7 @@ def research_worst_case(
         return worst_case_cost(members, catalog, prompt_tokens, answer_tokens)
     results = min(searches * RESULTS_PER_SEARCH, MAX_RESULTS_PER_ANSWER) * SEARCH_RESULT_TOKENS
     prompt = (searches + 1) * prompt_tokens + searches * results
-    fees = len(members) * searches * SEARCH_PRICE_USD
+    fees = sum(m.route == "api" for m in members) * searches * SEARCH_PRICE_USD
     return worst_case_cost(members, catalog, prompt, answer_tokens) + fees
 
 

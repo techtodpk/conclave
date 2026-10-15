@@ -39,6 +39,8 @@ class Member:
 
     model: str
     route: str = "api"
+    # The model name the command-line tool expects, when Conclave's guess is wrong.
+    cli_model: str | None = None
 
     @property
     def vendor(self) -> str:
@@ -235,11 +237,18 @@ def _amount(table: dict[str, Any], key: str) -> float:
 
 
 def parse_member(raw: Any, where: str = "member") -> Member:
-    """Accept either "vendor/model" or { model = "vendor/model", route = "api" }."""
+    """Accept either "vendor/model" or { model = "vendor/model", route = "api" }.
+
+    A table may also give `cli_model`, the name the command-line tool knows the model by.
+    """
+    cli_model = None
     if isinstance(raw, str):
         model, route = raw, "api"
     elif isinstance(raw, dict):
         model, route = raw.get("model"), raw.get("route", "api")
+        cli_model = raw.get("cli_model")
+        if cli_model is not None and (not isinstance(cli_model, str) or not cli_model.strip()):
+            raise ConfigError(f"{where}: cli_model must be a model name")
     else:
         raise ConfigError(f"{where} must be a model id or a table with a 'model' key")
 
@@ -247,7 +256,9 @@ def parse_member(raw: Any, where: str = "member") -> Member:
         raise ConfigError(f"{where}: model must look like 'vendor/model-name'")
     if route not in ROUTES:
         raise ConfigError(f"{where}: route must be one of {', '.join(ROUTES)}")
-    return Member(model=model.strip(), route=route)
+    return Member(
+        model=model.strip(), route=route, cli_model=cli_model.strip() if cli_model else None
+    )
 
 
 def _profile(name: str, raw: Any) -> Profile:

@@ -45,9 +45,12 @@ monthly_usd = 15.00
 # them against https://openrouter.ai/models before your first run.
 #
 # route = "api"  calls the model through OpenRouter (needs OPENROUTER_API_KEY).
-# route = "cli"  calls the vendor's own command-line tool on your own
-#                subscription. Personal use only; check your plan's terms.
-#                (CLI routes arrive in milestone 8.)
+# route = "cli"  calls the vendor's own command-line tool on your own plan:
+#                Claude Code for anthropic/..., Codex CLI for openai/...,
+#                Antigravity CLI for google/... It costs nothing against the caps
+#                below. Personal use only; check your plan's terms. Run
+#                `conclave tools` to see what is installed. If the tool knows the
+#                model by another name, add it: cli_model = "gemini-3.1-pro-high".
 #
 # Pick members from different vendors. Models from one lab tend to share blind
 # spots, and `conclave config` warns when two members share a vendor.

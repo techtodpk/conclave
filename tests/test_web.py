@@ -229,6 +229,53 @@ def test_councils_are_built_from_the_live_model_list(client, workspace):
     assert client.delete("/api/councils/balanced", headers=HEADERS).status_code == 400
 
 
+def test_council_seats_can_run_on_your_plan_and_keep_their_tool_name(client, workspace):
+    _setup(client, workspace)
+    body = {
+        "name": "plan",
+        "members": ["google/gemini-3.8-flash", "openai/gpt-6.1-sol"],
+        "chairman": "anthropic/claude-sonnet-5.5",
+        "on_plan": ["openai/gpt-6.1-sol"],
+    }
+    r = client.post("/api/councils", json=body, headers=HEADERS)
+    assert r.status_code == 200, r.text
+    plan = next(p for p in r.json()["profiles"] if p["name"] == "plan")
+    assert plan["on_plan"] == ["openai/gpt-6.1-sol"] and plan["api_only"] is False
+    assert {t["command"] for t in r.json()["tools"]} == {"claude", "codex", "agy"}
+    assert all(t["installed"] is False for t in r.json()["tools"])  # tests never find them
+
+    # A hand-set tool name survives editing the council in the app.
+    text = workspace.config.read_text(encoding="utf-8")
+    workspace.config.write_text(
+        text.replace(
+            '{ model = "openai/gpt-6.1-sol", route = "cli" }',
+            '{ model = "openai/gpt-6.1-sol", route = "cli", cli_model = "gpt-6.1-sol-mini" }',
+        ),
+        encoding="utf-8",
+    )
+    r = client.post("/api/councils", json={**body, "replace": True}, headers=HEADERS)
+    assert r.status_code == 200, r.text
+    assert 'cli_model = "gpt-6.1-sol-mini"' in workspace.config.read_text(encoding="utf-8")
+
+    no_tool = client.post(
+        "/api/councils",
+        json={**body, "name": "x", "on_plan": ["google/gemini-3.8-flash", "deepseek/x"]},
+        headers=HEADERS,
+    )
+    assert no_tool.status_code == 200  # deepseek/x is not a seat, so it is ignored
+    bad = client.post(
+        "/api/councils",
+        json={
+            "name": "y",
+            "members": ["google/gemini-3.8-flash", "deepseek/deepseek-v4.1-flash"],
+            "chairman": "openai/gpt-6.1-sol",
+            "on_plan": ["deepseek/deepseek-v4.1-flash"],
+        },
+        headers=HEADERS,
+    )
+    assert bad.status_code == 400 and "no command-line tool" in bad.json()["error"]
+
+
 def test_the_page_and_its_files_are_served(client):
     page = client.get("/")
     assert page.status_code == 200 and "<title>Conclave</title>" in page.text
@@ -317,3 +364,24 @@ def test_a_trusted_forwarded_address_works_and_others_do_not(workspace, openrout
             headers={**HEADERS, "Origin": "https://other-8765.app.github.dev"},
         )
         assert evil.status_code == 403
+
+
+def test_council_names_are_made_valid_instead_of_refused(client, workspace):
+    from conclave.web.app import council_name
+
+    assert council_name("  My Plan! ") == "my-plan"
+    assert council_name("plan") == "plan"
+    assert council_name("--Team_A--") == "team_a"
+    assert council_name("!!!") == ""
+    assert len(council_name("x" * 60)) == 40
+
+    _setup(client, workspace)
+    body = {
+        "members": ["google/gemini-3.8-flash", "deepseek/deepseek-v4.1-flash"],
+        "chairman": "openai/gpt-6.1-sol",
+    }
+    r = client.post("/api/councils", json={**body, "name": "My Plan"}, headers=HEADERS)
+    assert r.status_code == 200, r.text
+    assert any(p["name"] == "my-plan" for p in r.json()["profiles"])
+    blank = client.post("/api/councils", json={**body, "name": "  "}, headers=HEADERS)
+    assert blank.status_code == 400 and "for example plan" in blank.json()["error"]

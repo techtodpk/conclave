@@ -24,7 +24,7 @@
 | Search across your past research; list topics; personal model leaderboard | Works | Milestone 4 |
 | Members search the web and cite sources; key claims checked against the cited pages | Works | Milestone 5 |
 | Use from Claude Desktop and Cursor (MCP server) | Works in Claude Desktop; Cursor not yet tried | Milestone 6 |
-| Run members on your own Claude, Gemini or ChatGPT plan instead of the API | Not yet | Milestone 8 |
+| Run members on your own Claude, ChatGPT or Google AI plan, through Claude Code, Codex CLI or Antigravity CLI | Works | Milestone 8 |
 | Public benchmark ranking chart | Not yet | Milestone 9 |
 
 **"Verified" means a cited page states the claim, not that the claim is true.** Every key claim on the one-page answer carries a label, worked out in code from the evidence: verified, agreed but unchecked, single source, single model or disputed. `verification.md` shows the quote behind every verdict, so you can judge the page for yourself. Quick runs and `--no-search` runs answer from the models' training data and say so.

@@ -112,7 +112,10 @@ def update(config_path: Path, changes: dict[tuple[str, str], object]) -> Config:
 
 def profile_block(name: str, members: list[Member], chairman: Member, checker: Member) -> str:
     def table(member: Member) -> str:
-        return f"{{ model = {toml_value(member.model)}, route = {toml_value(member.route)} }}"
+        named = f", cli_model = {toml_value(member.cli_model)}" if member.cli_model else ""
+        return (
+            f"{{ model = {toml_value(member.model)}, route = {toml_value(member.route)}{named} }}"
+        )
 
     lines = [f"[profiles.{name}]", "members = ["]
     lines += [f"    {table(member)}," for member in members]

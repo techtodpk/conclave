@@ -25,6 +25,7 @@ from conclave.budget import (
     worst_case_cost,
 )
 from conclave.catalog import CatalogError, ModelInfo, closest, fetch_models
+from conclave.cli_tools import CliClient, RoutedClient
 from conclave.client import KeyStatus, OpenRouterClient, key_status
 from conclave.config import Config, Member
 from conclave.council import (
@@ -107,7 +108,15 @@ class _Reporting:
 
     async def complete(self, member: Member, messages, max_tokens: int, searches: int = 0):
         stage = self.stage
-        self._progress({"type": "call", "stage": stage, "model": member.model, "state": "started"})
+        self._progress(
+            {
+                "type": "call",
+                "stage": stage,
+                "model": member.model,
+                "route": member.route,
+                "state": "started",
+            }
+        )
         try:
             if searches:
                 done = await self._client.complete(member, messages, max_tokens, searches)
@@ -119,6 +128,7 @@ class _Reporting:
                     "type": "call",
                     "stage": stage,
                     "model": member.model,
+                    "route": member.route,
                     "state": "failed",
                     "error": str(error),
                 }
@@ -129,6 +139,7 @@ class _Reporting:
                 "type": "call",
                 "stage": stage,
                 "model": member.model,
+                "route": member.route,
                 "state": "done",
                 "cost": done.cost_usd,
                 "seconds": round(done.seconds, 1),
@@ -202,9 +213,9 @@ class Outcome:
 
 
 def check_ids(members: list[Member], catalog: dict[str, ModelInfo]) -> None:
-    """Refuse the run if any model id is not in OpenRouter's list."""
+    """Refuse the run if any model reached through OpenRouter is not in its list."""
     for member in dict.fromkeys(members):
-        if member.model in catalog:
+        if member.route != "api" or member.model in catalog:
             continue
         near = closest(catalog, member.model)
         hint = f" Did you mean: {', '.join(near)}?" if near else ""
@@ -313,7 +324,15 @@ async def run_question(
                     "choose cheaper models, or raise the cap in the config file."
                 )
 
-        outcome.key = await key_status(http, api_key)
+        uses_api = any(
+            m.route == "api"
+            for m in [
+                *members,
+                *([chairman.member] if chairman else []),
+                *([checker.member] if checker else []),
+            ]
+        )
+        outcome.key = await key_status(http, api_key) if uses_api else None
         remaining = outcome.key.remaining if outcome.key else None
         if remaining is not None and outcome.estimate is not None and outcome.estimate > remaining:
             raise Refused(
@@ -323,7 +342,10 @@ async def run_question(
                 "run or cheaper models."
             )
 
-        client: Any = OpenRouterClient(http, api_key, reasoning=settings.reasoning)
+        client: Any = RoutedClient(
+            OpenRouterClient(http, api_key, reasoning=settings.reasoning),
+            CliClient(reasoning=settings.reasoning),
+        )
         report: Any = _Silent()
         if progress is not None:
             client = report = _Reporting(client, progress)
@@ -847,7 +869,9 @@ def _commit(outcome: Outcome, store: Path, run: Run, topic_dir: Path, question: 
 
 
 def _record(call: Call, catalog: dict[str, ModelInfo]) -> Call:
-    if call.result.completion is not None:
+    if call.result.completion is not None and call.result.seat.member.route == "cli":
+        call.cost, call.cost_source = 0.0, "plan"  # paid by the user's own plan
+    elif call.result.completion is not None:
         call.cost, call.cost_source = cost_of(
             call.result.completion, catalog.get(call.result.seat.member.model)
         )

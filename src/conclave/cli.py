@@ -112,7 +112,14 @@ def init(
 
 
 def _describe(member: Member) -> str:
-    return f"{member.model} [{member.route}]"
+    if member.route != "cli":
+        return f"{member.model} [{member.route}]"
+    from conclave import cli_tools
+
+    tool = cli_tools.TOOLS.get(member.vendor)
+    on = f"on your plan through {tool.name}" if tool else "cli, but no tool for this vendor"
+    named = f", as {member.cli_model}" if member.cli_model else ""
+    return f"{member.model} [{on}{named}]"
 
 
 @app.command("config")
@@ -655,6 +662,26 @@ def run_app(
     except OSError as error:
         raise _fail(f"Could not start the app: {error}") from None
     typer.echo(message)
+
+
+@app.command("tools")
+def show_tools() -> None:
+    """Check the command-line tools that can answer on your own plan (route "cli")."""
+    from conclave import cli_tools
+
+    typer.echo('Command-line tools for seats with route = "cli" (personal use on your own plan):')
+    for found in cli_tools.status():
+        tool = found.tool
+        typer.echo("")
+        typer.echo(f"{tool.name} (`{tool.command}`), for {tool.vendor}/... models")
+        if found.path is None:
+            typer.echo("  Not installed.")
+            typer.echo(f"  Install: {tool.install}")
+            typer.echo(f"  Then sign in: {tool.login}")
+        else:
+            typer.echo(f"  Installed: {found.path}")
+            typer.echo(f"  Version:   {found.version}")
+            typer.echo(f"  Sign in once if you have not: {tool.login}")
 
 
 @app.command("shortcut")

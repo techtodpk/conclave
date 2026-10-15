@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from conclave import library
+from conclave import cli_tools, library
+from conclave.client import ModelError
 from conclave.config import MIN_MEMBERS, Config, ConfigError, Member, Profile, parse_member
 from conclave.council import Seat
 from conclave.gitstore import commit
@@ -95,12 +96,16 @@ def plan_ask(
     else:
         seats = [chair]
 
-    for seat in [*seats, chair]:
-        if seat.member.route != "api":
-            raise Stop(
-                f"{seat.member.model} is set to route '{seat.member.route}'. Only route 'api' "
-                "works so far; command-line routes arrive in milestone 8."
-            )
+    for member in dict.fromkeys(
+        [*(s.member for s in seats), chair.member, *([chosen.checker] if mode == "full" else [])]
+    ):
+        if member.route == "cli":
+            try:
+                tool = cli_tools.tool_for(member)
+            except ModelError as error:
+                raise Stop(str(error)) from None
+            if cli_tools.find(tool) is None:
+                raise Stop(cli_tools.not_installed(tool, member))
 
     init_store(settings.store_path)
     spent = month_spend(settings.store_path, started)
@@ -127,11 +132,19 @@ async def run_plan_async(
     approve=None,
     progress=None,
 ) -> Outcome:
-    """Load the key and run the question. Raises Stop for anything refused before sending."""
-    try:
-        api_key = load_api_key(config_path)
-    except MissingKeyError as error:
-        raise Stop(str(error)) from None
+    """Load the key and run the question. Raises Stop for anything refused before sending.
+
+    A run in which every seat is on the user's own plan (route "cli") needs no key.
+    """
+    seated = [*(s.member for s in plan.seats), plan.chairman.member]
+    if plan.mode == "full":
+        seated.append(plan.profile.checker)
+    api_key = ""
+    if any(m.route == "api" for m in seated):
+        try:
+            api_key = load_api_key(config_path)
+        except MissingKeyError as error:
+            raise Stop(str(error)) from None
     try:
         return await run_question(
             question,

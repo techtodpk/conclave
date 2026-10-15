@@ -356,6 +356,41 @@ To try a set of models once without saving a profile:
 conclave ask "your question" --members google/gemini-3.8-flash,openai/gpt-6.1-sol
 ```
 
+### Run members on your own plan
+
+If you pay for Claude, ChatGPT or Google AI, a seat can be answered by that vendor's own command-line tool on your plan instead of through OpenRouter. It costs nothing against your Conclave limits; it uses your plan's allowance instead. Personal use only: check your plan's terms, which have changed several times this year.
+
+| Models | Tool | Install | Sign in once |
+| --- | --- | --- | --- |
+| `anthropic/...` (Claude) | Claude Code | Windows: `irm https://claude.ai/install.ps1 \| iex`; macOS and Linux: `curl -fsSL https://claude.ai/install.sh \| bash` | Run `claude`, type `/login` |
+| `openai/...` (GPT) | Codex CLI | `npm install -g @openai/codex` | Run `codex`, choose Sign in with ChatGPT |
+| `google/...` (Gemini) | Antigravity CLI | Windows: `irm https://antigravity.google/cli/install.ps1 \| iex`; macOS and Linux: `curl -fsSL https://antigravity.google/cli/install.sh \| bash` | Run `agy`, sign in with Google |
+
+Gemini CLI no longer accepts Google sign-in for individuals, so Conclave uses Antigravity CLI for Gemini models.
+
+Check what is installed:
+
+```bash
+conclave tools
+```
+
+Then switch a seat to your plan, either in the app (Settings, Edit a council, tick "Run on your own plan") or in the config file:
+
+```toml
+[profiles.mine]
+members = [
+    { model = "anthropic/claude-sonnet-5.5", route = "cli" },
+    { model = "openai/gpt-6.1-sol", route = "cli" },
+    { model = "google/gemini-3.8-flash", route = "cli" },
+]
+chairman = { model = "anthropic/claude-sonnet-5.5", route = "api" }
+checker = { model = "anthropic/claude-sonnet-5.5", route = "api" }
+```
+
+Each call runs the tool in an empty temporary folder with web search as its only tool, so it reads none of your files. A run in which every seat is on your plan needs no OpenRouter key. If the tool knows a model by another name, add `cli_model = "..."` to that seat; `agy models` lists Antigravity's names. To go back to OpenRouter, change `route = "cli"` to `route = "api"`.
+
+If a tool's plan allowance runs out, its error is shown in its own words, for example "You've hit your usage limit… try again at 4:16 AM", and the other members carry on.
+
 ## 10. Use Conclave from Claude Desktop and Cursor
 
 Conclave can run as an MCP server, so Claude Desktop, Cursor and other MCP clients can search your research store, read what the council concluded, and ask the council a question in the middle of a conversation.

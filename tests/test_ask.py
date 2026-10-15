@@ -419,7 +419,7 @@ def test_conflicting_or_empty_input_is_refused(workspace, openrouter):
     assert openrouter.chat_requests == []
 
 
-def test_command_line_route_is_refused_for_now(workspace, openrouter):
+def test_command_line_route_needs_its_tool_installed(workspace, openrouter):
     _init(workspace)
     workspace.set_key()
     _edit_config(
@@ -433,7 +433,8 @@ def test_command_line_route_is_refused_for_now(workspace, openrouter):
     result = _ask(workspace, "A question")
 
     assert result.exit_code == 1
-    assert "milestone 8" in result.output
+    assert "the `claude` command was not found" in " ".join(result.output.split())
+    assert 'route = "api"' in result.output
     assert openrouter.chat_requests == []
 
 

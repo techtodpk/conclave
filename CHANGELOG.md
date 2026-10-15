@@ -2,6 +2,19 @@
 
 Each milestone on the [roadmap](README.md#roadmap) is tagged in Git when it is complete. Work in progress and pending tasks are tracked in [project status](docs/STATUS.md).
 
+## Milestone 8: command-line routes and showcase (in progress)
+
+Decision record [0014](docs/decisions/0014-command-line-routes.md). Live run on Windows: a full council with all three members on their plans and Claude Opus as chairman and checker took 112 s and cost $0.19, all of it Opus; 6 of 8 key claims verified.
+
+- A council seat with `route = "cli"` runs on your own plan: Claude Code for Claude models, Codex CLI for GPT models, Antigravity CLI for Gemini models. Each call runs the tool once in an empty temporary folder, with web search as its only tool, and reads its JSON reply.
+- Seats on your plan cost nothing against the caps and are left out of the pre-run estimate. Their calls are recorded at $0 with the source "plan", with the tokens used and, for Claude Code, what the call would have cost at API prices. A run with every seat on a plan needs no OpenRouter key.
+- The links a command-line answer cites become its sources, so its key claims are checked like any other member's.
+- A missing tool is caught before anything is sent, with how to install it and sign in. A tool's own error, such as a used-up plan allowance, is shown in its own words.
+- `conclave tools` shows which tools are installed. `conclave config` shows which seats run on your plan. `cli_model` sets the name a tool knows a model by.
+- The app's council editor has a "Run on your own plan" box for Claude, GPT and Gemini seats, and the live progress and run pages show "on your plan" instead of a cost.
+- Tests can never start a real command-line tool.
+- A council name typed in the app is made valid instead of refused: "My Plan" is saved as `my-plan`.
+
 ## Milestone 7: app and guided install, 10 October 2026
 
 Version 0.7.0. Tagged `milestone-7`. Live run on Windows: installed with the one-line command from GitHub, setup wizard finished from an empty config, a full four-member question answered in the app ($0.29, 3 of 8 claims verified), and the desktop shortcut opens the app. Not yet run on macOS or in a live Codespace. Decision record [0013](docs/decisions/0013-local-app-and-guided-install.md) moves a web interface into the scope of v1; the later milestones are renumbered (CLI adapters and showcase are now 8, the public ranking chart 9).

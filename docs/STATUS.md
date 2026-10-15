@@ -2,13 +2,13 @@
 
 **The single source of truth for what Conclave does today, what is being built now, and what is still to come.** Every change that adds, removes or changes a capability updates this file in the same commit.
 
-Last updated: 10 October 2026 · Version 0.7.0 · Latest tag: `milestone-6`
+Last updated: 15 October 2026 · Version 0.7.0 · Latest tag: `milestone-6`
 
 | | |
 | --- | --- |
 | **Done** | Milestones 1 to 7: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer; a memory per topic that each new question starts from; web search, with key claims checked against the cited pages; an MCP server for Claude Desktop; an app in the browser with a one-command install and guided setup |
-| **In progress** | Nothing; milestone 8 is next |
-| **Next** | Milestone 8: running members on your own Claude, Gemini or ChatGPT plan, and a sample topic |
+| **In progress** | Milestone 8: command-line routes run live on all three tools; the sample topic and published numbers remain |
+| **Next** | Milestone 9: the public ranking chart |
 
 ## Scope
 
@@ -37,7 +37,7 @@ A change of scope is recorded as a decision record before it is built.
 | 5 | Web search and claim check | Done, 8 Oct 2026 | `milestone-5` |
 | 6 | MCP server | Done, 10 Oct 2026 | `milestone-6` |
 | 7 | App and guided install | Done, 10 Oct 2026 | `milestone-7` |
-| 8 | CLI adapters and showcase | Pending | |
+| 8 | CLI adapters and showcase | In progress | |
 | 9 | Public ranking chart | Pending | |
 
 A milestone is done when every task below is ticked, the tests and CI pass, it has been run against the live API, and the README, setup guide, changelog and this file describe it.
@@ -161,13 +161,19 @@ Done when someone who has never used a terminal can install Conclave from one co
 - [ ] Live run on macOS: moved to follow-ups
 - [ ] "Try it in your browser" in a live Codespace: moved to follow-ups
 
-### 8. CLI adapters and showcase: pending
+### 8. CLI adapters and showcase: in progress
 
 Done when a full run works with Claude on the user's own plan, and the README shows a real sample topic with its numbers.
 
-- [ ] Adapters for `claude -p`, Gemini CLI and Codex CLI, chosen per model with `route = "cli"` (decision 0001)
-- [ ] Every adapter can fall back to the API through a config change
-- [ ] CLI calls counted and logged, though they cost nothing against the caps
+- [x] Each tool run on Windows before building: Claude Code 2.1.296, Codex CLI 0.160.1, Antigravity CLI 1.3.2. Gemini CLI no longer accepts Google sign-in for individuals, so Antigravity replaces it (decision 0014)
+- [x] Adapters for Claude Code, Codex CLI and Antigravity CLI, chosen per seat with `route = "cli"`; web search the only tool, in an empty temporary folder
+- [x] Claude Code's own prompt, MCP servers and session files left out: one question fell from about 225,000 tokens ($0.43 at API prices) to about 17,000 ($0.026)
+- [x] Every seat can go back to the API with a one-word config change
+- [x] Calls on a plan recorded at $0 against the caps, with their tokens; a run with every seat on a plan needs no OpenRouter key
+- [x] `conclave tools`, the route in `conclave config`, and "Run on your own plan" in the app's council editor
+- [x] Tests from each tool's real output; tests can never start a real tool
+- [x] Live run on Windows, 15 October: a full council with Claude Code, Codex CLI and Antigravity CLI as members on their plans and Claude Opus as chairman and checker on OpenRouter. All three answered and reviewed; 14 sources, 10 pages read, 6 of 8 key claims verified; 112 s; $0.19, all of it Opus
+- [x] Council names typed in the app are made valid ("My Plan" becomes `my-plan`) instead of refused
 - [ ] A sample topic folder in the repository
 - [ ] Measured cost and time per run published in the README
 
@@ -197,7 +203,7 @@ Done when the chart shows at least one public source beside the personal leaderb
 | `conclave rebuild <topic>` | Regenerate a topic's summary from all its runs and show how it differs from the current one, as a drift check. Deferred until topics have enough runs to drift | After milestone 5 |
 | Installer not yet run on macOS | `install.sh` is tested in a clean home folder on Linux, and the Windows installer live; neither has run on a Mac | Run it on a Mac when one is available |
 | Codespace not yet opened for real | The `.devcontainer` configuration is checked, but no live Codespace has been opened from the README link | Open one and check the app loads |
-| Claude Sonnet did not search | In both full runs on 9 and 10 October Claude Sonnet answered with no searches and no cited pages. Its prompt was 1,500 to 3,200 tokens against 11,000 to 16,000 for members that searched, and no search fee was charged, so it chose not to search: the prompt told members not to search for what they know well | Fixed 10 October: the prompt now requires at least one search, and a member that still answers without searching or citing is asked once more to search (decision 0011). Confirm in the next full run |
+| Claude Sonnet did not search | In both full runs on 9 and 10 October Claude Sonnet answered with no searches and no cited pages. Its prompt was 1,500 to 3,200 tokens against 11,000 to 16,000 for members that searched, and no search fee was charged, so it chose not to search: the prompt told members not to search for what they know well | Fixed 10 October: the prompt now requires at least one search, and a member that still answers without searching or citing is asked once more to search (decision 0011). Confirmed in the next full run: Claude Sonnet searched and cited pages |
 | A retry can go past the cost ceiling | Asking again with reasoning off adds a call the pre-run estimate does not count. It happens only after a failed attempt and costs about one call | Keep; the cap is checked again before each stage |
 | Cursor not yet tried | The MCP server is tested with a real stdio session and live in Claude Desktop, but has not been connected to Cursor | Try it when Cursor is in use; the config entry is the same |
 | No interactive model picker | Profiles are built with `conclave profile add`; an interactive picker may come later | Not scheduled |

@@ -29,7 +29,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from conclave import __version__, library, service
+from conclave import __version__, cli_tools, library, service
 from conclave.catalog import CatalogError, ModelInfo, fetch_models
 from conclave.config import (
     MIN_MEMBERS,
@@ -173,6 +173,12 @@ def outcome_payload(outcome: Outcome, settings: Config, spent: float) -> dict[st
 
 
 # --- the app --------------------------------------------------------------------------
+
+
+def council_name(text: str) -> str:
+    """A council name as typed, made valid: "My Plan!" becomes "my-plan"."""
+    name = re.sub(r"[^a-z0-9_-]+", "-", text.strip().lower()).strip("-_")
+    return name[:40].rstrip("-_")
 
 
 def create_app(
@@ -626,8 +632,22 @@ def create_app(
                     "checker": p.checker.model,
                     "shared_vendors": p.shared_vendors(),
                     "api_only": all(m.route == "api" for m in [*p.members, p.chairman, p.checker]),
+                    "on_plan": sorted(
+                        {m.model for m in [*p.members, p.chairman, p.checker] if m.route == "cli"}
+                    ),
                 }
                 for p in cfg.profiles.values()
+            ],
+            "tools": [
+                {
+                    "vendor": tool.vendor,
+                    "name": tool.name,
+                    "command": tool.command,
+                    "installed": cli_tools.find(tool) is not None,
+                    "install": tool.install,
+                    "login": tool.login,
+                }
+                for tool in cli_tools.TOOLS.values()
             ],
         }
 
@@ -689,7 +709,9 @@ def create_app(
     async def save_council(request: Request) -> Response:
         settings()
         data = await body(request)
-        name = str(data.get("name", "")).strip().lower()
+        name = council_name(str(data.get("name", "")))
+        if not name:
+            raise ApiError("Give the council a name, for example plan.")
         ids = [str(x).strip() for x in data.get("members") or [] if str(x).strip()]
         chair = str(data.get("chairman", "")).strip()
         checker = str(data.get("checker", "")).strip() or chair
@@ -697,9 +719,28 @@ def create_app(
             raise ApiError(f"Pick at least {MIN_MEMBERS} members.")
         if not chair:
             raise ApiError("Pick a chairman.")
+        on_plan = {str(x).strip() for x in data.get("on_plan") or []}
+        cfg_now = settings()
+        earlier = cfg_now.profiles.get(name)
+        named = {
+            m.model: m.cli_model
+            for m in ([*earlier.members, earlier.chairman, earlier.checker] if earlier else [])
+            if m.cli_model
+        }
+
+        def seat(model_id: str) -> Member:
+            if model_id in on_plan:
+                vendor = model_id.split("/", 1)[0]
+                if vendor not in cli_tools.TOOLS:
+                    raise ApiError(
+                        f"{model_id} has no command-line tool, so it cannot run on your plan."
+                    )
+                return Member(model_id, "cli", named.get(model_id))
+            return Member(model_id)
+
         try:
-            members = [Member(i) for i in ids]
-            chair_m, check_m = Member(chair), Member(checker)
+            members = [seat(i) for i in ids]
+            chair_m, check_m = seat(chair), seat(checker)
             check_ids([*members, chair_m, check_m], await catalog())
         except Refused as refused:
             raise ApiError(str(refused)) from None
