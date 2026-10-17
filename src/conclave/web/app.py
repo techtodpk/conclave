@@ -29,7 +29,7 @@ from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from conclave import __version__, cli_tools, library, service
+from conclave import __version__, cli_tools, library, rankings, service
 from conclave.catalog import CatalogError, ModelInfo, fetch_models
 from conclave.config import (
     MIN_MEMBERS,
@@ -603,6 +603,54 @@ def create_app(
             }
         )
 
+    # --- public rankings ---------------------------------------------------------
+
+    async def get_rankings(request: Request) -> Response:
+        cfg = settings()
+        refresh = request.query_params.get("refresh") == "1"
+        shown = await rankings.view(cfg, path, refresh=refresh, top=10)
+        return JSONResponse(
+            {
+                "sources": [
+                    {
+                        "key": b.source,
+                        "name": b.info.name,
+                        "url": b.info.url,
+                        "credit": b.info.credit,
+                        "measure": b.info.measure,
+                        "published": b.published,
+                    }
+                    for b in shown.boards
+                ],
+                "rows": [
+                    {
+                        "model": r.model,
+                        "yours": r.yours,
+                        "price_in": r.price_in,
+                        "price_out": r.price_out,
+                        "council": r.council,
+                        "council_rankings": r.council_rankings,
+                        "cells": {k: None if c is None else vars(c) for k, c in r.cells.items()},
+                    }
+                    for r in shown.rows
+                ],
+                "problems": shown.problems,
+                "missing_key": shown.missing_key,
+            }
+        )
+
+    async def save_rankings_key(request: Request) -> Response:
+        settings()
+        data = await body(request)
+        key = str(data.get("key", "")).strip()
+        if not key:
+            raise ApiError("Paste your Artificial Analysis key first.")
+        try:
+            save_api_key(path, key, rankings.AA_KEY_NAME, "Artificial Analysis")
+        except SettingsError as error:
+            raise ApiError(str(error)) from None
+        return JSONResponse({"saved": True})
+
     # --- settings and councils ---------------------------------------------------
 
     def settings_payload(cfg: Config) -> dict[str, Any]:
@@ -790,6 +838,8 @@ def create_app(
         Route("/api/topics/{topic}/runs/{run}", api(get_run)),
         Route("/api/search", api(search)),
         Route("/api/spending", api(spending)),
+        Route("/api/rankings", api(get_rankings)),
+        Route("/api/rankings/key", api(save_rankings_key), methods=["POST"]),
         Route("/api/settings", api(get_settings)),
         Route("/api/settings", api(put_settings), methods=["PUT"]),
         Route("/api/models", api(models)),

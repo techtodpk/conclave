@@ -201,6 +201,8 @@ class FakeOpenRouter:
             PAGE_A: (200, "text/html; charset=utf-8", PAGE_A_HTML),
         }
         self.fetched: list[str] = []
+        # host -> handler, for other services the tests simulate (ranking sources).
+        self.hosts: dict[str, Callable[[httpx.Request], httpx.Response]] = {}
 
     def reply(self, model: str, *responses: httpx.Response, stage: str | None = None) -> None:
         """Queue responses for a model, optionally for one stage only.
@@ -210,6 +212,8 @@ class FakeOpenRouter:
         self.replies[f"{stage}:{model}" if stage else model] = list(responses)
 
     def handle(self, request: httpx.Request) -> httpx.Response:
+        if request.url.host in self.hosts:
+            return self.hosts[request.url.host](request)
         if request.url.host != "openrouter.ai":
             url = str(request.url)
             self.fetched.append(url)

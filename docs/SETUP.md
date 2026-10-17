@@ -162,7 +162,7 @@ If the terminal says `conclave` is not recognised, use `python -m conclave --ver
 Expected output:
 
 ```
-conclave 0.8.0
+conclave 0.9.0
 ```
 
 ## 5. First run
@@ -311,6 +311,7 @@ Other useful commands:
 | --- | --- |
 | `conclave search "context switch"` | Searches every question, answer, final page, summary and note |
 | `conclave leaderboard` | Which models the others ranked highest across your full runs |
+| `conclave rank` | Public rankings (LMArena, and Artificial Analysis with a key) beside your own leaderboard, with prices |
 | `conclave ask "..." --full --review` | Shows the proposed memory changes and asks before saving them |
 | `conclave ask "..." --fresh` | Ignores the topic's memory for one run and leaves it unchanged |
 
@@ -355,6 +356,16 @@ To try a set of models once without saving a profile:
 ```bash
 conclave ask "your question" --members google/gemini-3.8-flash,openai/gpt-6.1-sol
 ```
+
+### Compare models with public rankings
+
+`conclave rank`, or the app's **Rankings** page, shows each model in your councils with its place on public leaderboards, your own council's verdict on it, and its price:
+
+- **LMArena**: a rating from people's votes between two anonymous answers. No key needed.
+- **Artificial Analysis**: its Intelligence Index, from its own benchmark runs. Optional: get a free key at [artificialanalysis.ai](https://artificialanalysis.ai/data-api) and add `ARTIFICIAL_ANALYSIS_API_KEY=your-key` to the `.env` file beside your config, or paste it on the Rankings page.
+- **Your council**: how the other members ranked each model's answers in your own full runs. 0 means always ranked best, 1 always worst.
+
+The rankings are fetched at most once a day; `conclave rank --refresh` or the Refresh button fetches them again. Each source names models its own way, so Conclave matches them by company and name and shows the source's own name for each match, for example `claude-sonnet-5.5-xhigh`. If a model is missed or matched wrongly, add it to `src/conclave/model_names.toml`.
 
 ### Run members on your own plan
 

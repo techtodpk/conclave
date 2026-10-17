@@ -87,7 +87,7 @@ code, pre { font-family: var(--mono); font-size: .9em; }
 .ico { width: 18px; text-align: center; opacity: .8; }
 .sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
 .version { color: var(--muted); font-size: .78rem; padding: 0 8px; }
-main { padding: 32px clamp(16px, 4vw, 48px) 64px; max-width: 1080px; width: 100%; outline: none; }
+main { padding: 32px clamp(16px, 4vw, 48px) 64px; max-width: 1080px; width: 100%; min-width: 0; outline: none; }
 
 @media (max-width: 760px) {
   .shell { grid-template-columns: 1fr; }
@@ -215,6 +215,11 @@ table.list a { text-decoration: none; }
 .bar > span { display: block; height: 100%; background: var(--accent); }
 .bar.high > span { background: var(--warn); }
 .bar.over > span { background: var(--bad); }
+.bar.thin { height: 5px; margin-top: 4px; }
+.rank-cell { min-width: 120px; }
+.rank-value { font-variant-numeric: tabular-nums; font-size: .9rem; }
+.table-wrap { overflow-x: auto; }
+.rank-table tr.on td:first-child { font-weight: 600; }
 .stat { font-size: 1.7rem; font-weight: 700; letter-spacing: -.01em; }
 .topic-card { text-decoration: none; color: inherit; display: block; }
 .topic-card:hover { border-color: var(--accent); }

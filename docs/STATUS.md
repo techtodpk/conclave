@@ -2,13 +2,13 @@
 
 **The single source of truth for what Conclave does today, what is being built now, and what is still to come.** Every change that adds, removes or changes a capability updates this file in the same commit.
 
-Last updated: 15 October 2026 · Version 0.8.0 · Latest tag: `milestone-8`
+Last updated: 18 October 2026 · Version 0.9.0 · Latest tag: `milestone-9`
 
 | | |
 | --- | --- |
-| **Done** | Milestones 1 to 8: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer; a memory per topic that each new question starts from; web search, with key claims checked against the cited pages; an MCP server for Claude Desktop; an app in the browser with a one-command install and guided setup; members on the user's own plan through Claude Code, Codex CLI and Antigravity CLI |
-| **In progress** | Nothing; milestone 9 is next |
-| **Next** | Milestone 9: the public ranking chart |
+| **Done** | Milestones 1 to 9: project setup; asking one model or a whole council; members reviewing each other and a chairman's one-page answer; a memory per topic that each new question starts from; web search, with key claims checked against the cited pages; an MCP server for Claude Desktop; an app in the browser with a one-command install and guided setup; members on the user's own plan through Claude Code, Codex CLI and Antigravity CLI; public rankings beside the council's own |
+| **In progress** | Nothing; every v1 milestone is done |
+| **Next** | Follow-ups below, starting with Artificial Analysis once a key is accepted |
 
 ## Scope
 
@@ -38,7 +38,7 @@ A change of scope is recorded as a decision record before it is built.
 | 6 | MCP server | Done, 10 Oct 2026 | `milestone-6` |
 | 7 | App and guided install | Done, 10 Oct 2026 | `milestone-7` |
 | 8 | CLI adapters and showcase | Done, 15 Oct 2026 | `milestone-8` |
-| 9 | Public ranking chart | Pending | |
+| 9 | Public ranking chart | Done, 18 Oct 2026 | `milestone-9` |
 
 A milestone is done when every task below is ticked, the tests and CI pass, it has been run against the live API, and the README, setup guide, changelog and this file describe it.
 
@@ -179,14 +179,19 @@ Done when a full run works with Claude on the user's own plan, and the README sh
 - [x] A sample topic in the repository, `examples/game-engine`: both runs, copied unedited apart from the redirect links, and checked for names, paths and keys
 - [x] Measured cost and time per run published in the README
 
-### 9. Public ranking chart: pending
+### 9. Public ranking chart: done
 
 Done when the chart shows at least one public source beside the personal leaderboard, each with its date, link and attribution.
 
-- [ ] `conclave rank`: one row per model, one column per source, price beside it (decision 0003)
-- [ ] Artificial Analysis first, then LMArena, LiveBench and DeepSWE
-- [ ] Model-name mapping file
-- [ ] Licences of LiveBench and DeepSWE checked before use
+- [x] Sources checked (decision 0015): Artificial Analysis (free API with a key, attribution required) and LMArena (CC BY 4.0 dataset, no key) are used; LiveBench publishes no licence or file for its results and DeepSWE states no licence, so both wait
+- [x] Real LMArena data read on Windows: the overall text leaderboard of 13 October 2026, 415 models; every model in the default councils matched
+- [x] `conclave rank`: one row per model, one column per source with its rank, the council's own score and OpenRouter's prices; each source's credit, date and link
+- [x] Rankings page in the app, with a bar per figure; the Artificial Analysis key can be pasted there
+- [x] Matching by company and name, allowing reasoning-level and date endings, with `model_names.toml` for exceptions
+- [x] Fetched at most once a day and cached in the research store; a source that fails keeps its last copy and says so
+- [x] Tests from the real LMArena rows; the page checked at desktop and phone widths
+- [x] Live run on Windows, LMArena: `conclave rank` showed 13 models, the five in the user's councils matched to LMArena's names, the ten best on OpenRouter added, each with its rating, rank and price, and the council's own score beside them
+- [ ] Live run, Artificial Analysis: moved to follow-ups, because the key was not accepted
 
 ## Known issues and follow-ups
 
@@ -207,6 +212,7 @@ Done when the chart shows at least one public source beside the personal leaderb
 | Codespace not yet opened for real | The `.devcontainer` configuration is checked, but no live Codespace has been opened from the README link | Open one and check the app loads |
 | Claude Sonnet did not search | In both full runs on 9 and 10 October Claude Sonnet answered with no searches and no cited pages. Its prompt was 1,500 to 3,200 tokens against 11,000 to 16,000 for members that searched, and no search fee was charged, so it chose not to search: the prompt told members not to search for what they know well | Fixed 10 October: the prompt now requires at least one search, and a member that still answers without searching or citing is asked once more to search (decision 0011). Confirmed in the next full run: Claude Sonnet searched and cited pages |
 | A retry can go past the cost ceiling | Asking again with reasoning off adds a call the pre-run estimate does not count. It happens only after a failed attempt and costs about one call | Keep; the cap is checked again before each stage |
+| Artificial Analysis not yet run live | Its code and tests are in place (decision 0015), but the free key was refused with "Invalid API key", so its data format is known only from its documentation | When a key is accepted, run `conclave rank --refresh` and check how its models are matched |
 | Cursor not yet tried | The MCP server is tested with a real stdio session and live in Claude Desktop, but has not been connected to Cursor | Try it when Cursor is in use; the config entry is the same |
 | No interactive model picker | Profiles are built with `conclave profile add`; an interactive picker may come later | Not scheduled |
 

@@ -640,6 +640,65 @@ def leaderboard(
     typer.echo("Few runs make for a noisy ranking. Treat this as a hint, not a verdict.")
 
 
+@app.command("rank")
+def rank(
+    refresh: Annotated[
+        bool, typer.Option("--refresh", help="Fetch the public rankings again now.")
+    ] = False,
+    top: Annotated[
+        int, typer.Option("--top", help="Also show the best N models of each source.")
+    ] = 10,
+    config: ConfigOption = None,
+) -> None:
+    """Public model rankings beside your own council's leaderboard, with prices."""
+    from conclave import rankings
+
+    config_path = _config_path(config)
+    settings = _load(config_path)
+    shown = asyncio.run(rankings.view(settings, config_path, refresh, max(0, top)))
+    for problem in shown.problems:
+        typer.echo(f"Note: {problem}")
+    if shown.missing_key:
+        typer.echo(
+            f"Note: add {rankings.AA_KEY_NAME}=... to your .env file to include Artificial "
+            "Analysis (a free key from artificialanalysis.ai)."
+        )
+    if not shown.rows:
+        raise _fail("Nothing to rank: no public source could be read and you have no runs yet.")
+
+    def cell(row, source: str) -> str:
+        found = row.cells.get(source)
+        return (
+            "–" if found is None else f"{found.value:g}" + (f" #{found.rank}" if found.rank else "")
+        )
+
+    columns = [b.info.name for b in shown.boards]
+    width = max(len(r.model) for r in shown.rows) + 2
+    head = f"{'Model'.ljust(width)}" + "".join(f"{c:>22}" for c in columns)
+    head += f"{'Your council':>14}{'$/M in':>9}{'$/M out':>9}"
+    typer.echo("")
+    typer.echo(head)
+    for row in shown.rows:
+        mark = "*" if row.yours else " "
+        line = f"{(mark + row.model).ljust(width)}"
+        line += "".join(f"{cell(row, b.source):>22}" for b in shown.boards)
+        council = "–" if row.council is None else f"{row.council:.2f} ({row.council_rankings})"
+        line += f"{council:>14}"
+        line += "".join(
+            f"{'–' if v is None else f'{v:.2f}':>9}" for v in (row.price_in, row.price_out)
+        )
+        typer.echo(line)
+    typer.echo("")
+    typer.echo("* in one of your councils. Your council: 0 = always ranked best by the others,")
+    typer.echo(
+        "  1 = always worst, with the number of reviews in brackets. Prices from OpenRouter."
+    )
+    for board in shown.boards:
+        info = board.info
+        typer.echo(f"{info.name}: {info.measure}. {info.credit}, {board.published}. {info.url}")
+    typer.echo("A model can rank differently on your own questions; few runs make a noisy score.")
+
+
 @app.command("app")
 def run_app(
     config: ConfigOption = None,

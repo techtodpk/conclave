@@ -112,6 +112,7 @@ const routes = {
   run: renderRun,
   search: renderSearch,
   spending: renderSpending,
+  rankings: renderRankings,
   settings: renderSettings,
   setup: renderSetup,
 };
@@ -690,6 +691,65 @@ async function renderSpending() {
         h("thead", {}, h("tr", {}, h("th", {}, "Model"), h("th", { class: "num" }, "Score"), h("th", { class: "num" }, "Ranked first"), h("th", { class: "num" }, "Rankings"))),
         h("tbody", {}, ...s.leaderboard.map(p => h("tr", {}, h("td", {}, p.model), h("td", { class: "num" }, p.score.toFixed(2)), h("td", { class: "num" }, p.firsts), h("td", { class: "num" }, p.rankings)))))
         : h("p", { class: "muted" }, "No rankings yet. Full council runs record them.")));
+}
+
+// --- rankings ------------------------------------------------------------------------------
+
+async function renderRankings(refresh) {
+  const title = () => page("Rankings", "Public leaderboards beside your own council's verdicts, with prices.");
+  setView(title(), loading());
+  let r;
+  try { r = await api(`/api/rankings${refresh === "refresh" ? "?refresh=1" : ""}`); }
+  catch (e) { setView(title(), errorBox(e.message)); return; }
+  const sources = r.sources;
+  const range = key => {
+    const v = r.rows.map(x => x.cells[key]).filter(Boolean).map(c => c.value);
+    return v.length ? [Math.min(...v), Math.max(...v)] : [0, 1];
+  };
+  const ranges = Object.fromEntries(sources.map(s => [s.key, range(s.key)]));
+  const barCell = (share, text, title) => h("td", { class: "rank-cell", title: title || "" },
+    h("div", { class: "rank-value" }, text), h("div", { class: "bar thin" }, h("span", { style: `width:${(Math.max(0.04, share) * 100).toFixed(1)}%` })));
+  const sourceCell = (row, s) => {
+    const c = row.cells[s.key];
+    if (!c) return h("td", { class: "muted small" }, "not ranked");
+    const [lo, hi] = ranges[s.key];
+    const share = hi > lo ? 0.15 + 0.85 * (c.value - lo) / (hi - lo) : 1;
+    return barCell(share, `${c.value}${c.rank ? ` · #${c.rank}` : ""}`, `${s.name} calls it ${c.name}`);
+  };
+  const councilCell = row => row.council === null ? h("td", { class: "muted small" }, "no runs")
+    : barCell(1 - row.council, `${row.council.toFixed(2)} · ${row.council_rankings} reviews`, "0 = always ranked best by the others, 1 = always worst");
+  const price = v => v === null ? "–" : `$${v.toFixed(2)}`;
+  const keyBox = h("div");
+  if (r.missing_key) {
+    const input = h("input", { type: "password", placeholder: "Paste your Artificial Analysis key", autocomplete: "off" });
+    keyBox.append(h("div", { class: "card" }, h("h2", {}, "Add Artificial Analysis (optional)"),
+      h("p", { class: "small muted" }, "Its Intelligence Index comes from its own benchmark runs. Get a free key at ",
+        h("a", { href: "https://artificialanalysis.ai/data-api", target: "_blank", rel: "noopener" }, "artificialanalysis.ai"), ". It is saved in your .env file beside the config, like the OpenRouter key."),
+      h("div", { class: "row" }, input, h("button", { class: "primary", onclick: async () => {
+        try { await api("/api/rankings/key", { method: "POST", body: { key: input.value } }); toast("Key saved."); renderRankings("refresh"); }
+        catch (e) { keyBox.append(errorBox(e.message)); }
+      } }, "Save key"))));
+  }
+  setView(title(),
+    ...r.problems.map(p => h("div", { class: "notice warn small" }, p)),
+    h("div", { class: "card" },
+      h("div", { class: "row between" }, h("h2", { style: "margin:0" }, "Models"),
+        h("button", { onclick: () => renderRankings("refresh") }, "Refresh")),
+      r.rows.length ? h("div", { class: "table-wrap" }, h("table", { class: "list rank-table" },
+        h("thead", {}, h("tr", {}, h("th", {}, "Model"), ...sources.map(s => h("th", {}, s.name)), h("th", {}, "Your council"), h("th", { class: "num" }, "$ per million in / out"))),
+        h("tbody", {}, ...r.rows.map(row => h("tr", { class: row.yours ? "on" : "" },
+          h("td", {}, row.model, row.yours ? h("span", { class: "pill", style: "margin-left:6px" }, "yours") : null),
+          ...sources.map(s => sourceCell(row, s)), councilCell(row),
+          h("td", { class: "num small" }, `${price(row.price_in)} / ${price(row.price_out)}`))))))
+        : h("p", { class: "muted" }, "Nothing to show yet.")),
+    h("div", { class: "card" }, h("h2", {}, "Where the numbers come from"),
+      h("ul", { class: "small" },
+        ...sources.map(s => h("li", {}, h("b", {}, s.name), `: ${s.measure}. ${s.credit}, published ${s.published}. `,
+          h("a", { href: s.url, target: "_blank", rel: "noopener" }, "See the full leaderboard"))),
+        h("li", {}, h("b", {}, "Your council"), ": how the other members ranked each model's answers in your own full runs, with the authors hidden. Few runs make a noisy score."),
+        h("li", {}, h("b", {}, "Prices"), ": OpenRouter's current prices.")),
+      h("p", { class: "small muted" }, "Rows: the models in your councils, models with your own rankings, and the 10 best of each source that OpenRouter offers. A model can rank differently on your own questions than on a public leaderboard.")),
+    keyBox);
 }
 
 // --- settings ------------------------------------------------------------------------------

@@ -173,11 +173,13 @@ def key_file(config_path: Path) -> Path:
     return config_path.parent / ".env"
 
 
-def save_api_key(config_path: Path, key: str) -> Path:
-    """Store the key in the .env file beside the config, keeping any other lines there."""
+def save_api_key(
+    config_path: Path, key: str, name: str = KEY_NAME, service: str = "OpenRouter"
+) -> Path:
+    """Store a key in the .env file beside the config, keeping any other lines there."""
     key = key.strip()
     if not key or any(c.isspace() for c in key) or len(key) > 300:
-        raise SettingsError("That does not look like an API key. Copy it again from OpenRouter.")
+        raise SettingsError(f"That does not look like an API key. Copy it again from {service}.")
     path = key_file(config_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = []
@@ -185,9 +187,9 @@ def save_api_key(config_path: Path, key: str) -> Path:
         lines = [
             line
             for line in path.read_text(encoding="utf-8-sig", errors="replace").splitlines()
-            if not re.match(rf"^\s*(export\s+)?{KEY_NAME}\s*=", line)
+            if not re.match(rf"^\s*(export\s+)?{re.escape(name)}\s*=", line)
         ]
-    lines.append(f"{KEY_NAME}={key}")
+    lines.append(f"{name}={key}")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     if os.name != "nt":
         path.chmod(0o600)

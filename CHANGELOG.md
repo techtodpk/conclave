@@ -2,6 +2,17 @@
 
 Each milestone on the [roadmap](README.md#roadmap) is tagged in Git when it is complete. Work in progress and pending tasks are tracked in [project status](docs/STATUS.md).
 
+## Milestone 9: public ranking chart, 18 October 2026
+
+Version 0.9.0. Tagged `milestone-9`. Decision record [0015](docs/decisions/0015-public-rankings.md). Live run on Windows with LMArena: `conclave rank` matched all five models in the user's councils and added the ten best on OpenRouter. Artificial Analysis is built and tested but has not yet run with an accepted key.
+
+- `conclave rank` and a new Rankings page in the app show each model in your councils beside public leaderboards: LMArena's text leaderboard (no key needed) and, with a free key, Artificial Analysis' Intelligence Index. Each row also shows how your own council ranked the model, and OpenRouter's prices. The ten best of each source that OpenRouter offers are added, to show what you might add to a council.
+- Every view names each source, what its number measures, its credit, the date of the ranking and a link to the full leaderboard.
+- Rankings are fetched at most once a day and cached in the research store; `--refresh` or the Refresh button fetches them again. A source that cannot be read keeps its last copy and says so.
+- Models are matched across sources by company and name, allowing reasoning-level endings such as `-xhigh`; the source's own name is shown. `model_names.toml` corrects a missed or wrong match.
+- The Artificial Analysis key goes in the `.env` file beside the config, or can be pasted on the Rankings page.
+- On a phone, wide tables now scroll inside their card instead of widening the page.
+
 ## Milestone 8: command-line routes and showcase, 15 October 2026
 
 Version 0.8.0. Tagged `milestone-8`. Decision record [0014](docs/decisions/0014-command-line-routes.md). Live run on Windows: a full council with all three members on their plans and Claude Opus as chairman and checker took 112 s and cost $0.19, all of it Opus; 6 of 8 key claims verified.

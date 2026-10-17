@@ -4,7 +4,7 @@
 
 **An LLM council that remembers.** Several models research the same question, critique each other, and save what they conclude to a research store on your own machine. Every later question on that topic starts from what the council already worked out.
 
-> **Status: milestone 8 of 9, version 0.8.0.** Conclave asks a council of AI models the same question. In a full run each member searches the web and cites its sources, the members review each other's answers with the authors hidden, a checker tests the key claims against the cited pages, and a chairman writes a one-page answer. It keeps a memory per topic, and every new question on a topic starts from what the council already concluded. Members can run through the API or on your own Claude, ChatGPT or Google AI plan. It runs as an app in your browser, installed with one command, or from the command line; Claude Desktop and Cursor can use it too. See [a real example](#a-real-example), [what works today](#what-works-today), and [project status](docs/STATUS.md) for what is being built now.
+> **Status: all 9 milestones done, version 0.9.0.** Conclave asks a council of AI models the same question. In a full run each member searches the web and cites its sources, the members review each other's answers with the authors hidden, a checker tests the key claims against the cited pages, and a chairman writes a one-page answer. It keeps a memory per topic, and every new question on a topic starts from what the council already concluded. Members can run through the API or on your own Claude, ChatGPT or Google AI plan. It runs as an app in your browser, installed with one command, or from the command line; Claude Desktop and Cursor can use it too. See [a real example](#a-real-example), [what works today](#what-works-today), and [project status](docs/STATUS.md) for what is being built now.
 
 ## What works today
 
@@ -25,7 +25,7 @@
 | Members search the web and cite sources; key claims checked against the cited pages | Works | Milestone 5 |
 | Use from Claude Desktop and Cursor (MCP server) | Works in Claude Desktop; Cursor not yet tried | Milestone 6 |
 | Run members on your own Claude, ChatGPT or Google AI plan, through Claude Code, Codex CLI or Antigravity CLI | Works | Milestone 8 |
-| Public benchmark ranking chart | Not yet | Milestone 9 |
+| Public rankings beside your own leaderboard, with prices, in the app and with `conclave rank`: LMArena works; Artificial Analysis is built but not yet run with an accepted key | Works (LMArena) | Milestone 9 |
 
 **"Verified" means a cited page states the claim, not that the claim is true.** Every key claim on the one-page answer carries a label, worked out in code from the evidence: verified, agreed but unchecked, single source, single model or disputed. `verification.md` shows the quote behind every verdict, so you can judge the page for yourself. Quick runs and `--no-search` runs answer from the models' training data and say so.
 
@@ -165,6 +165,7 @@ conclave show unity                              # what the council has conclude
 conclave note unity "We ship on low-end Android" # your own note; it outranks the council
 conclave search "netcode"                        # search past answers, summaries and notes
 conclave leaderboard                             # which models the others ranked highest
+conclave rank                                    # public rankings beside your own, with prices
 ```
 
 If the research store is a Git repository (`git init` inside it), every run and note is committed, so any change to the memory can be seen and undone.
@@ -251,7 +252,7 @@ The task-level plan for each milestone, with what is done, in progress and pendi
 - [x] **6. MCP server.** Claude Desktop and Cursor read and write the same store.
 - [x] **7. App and guided install.** A local app in the browser and a one-command install, for people who do not use a terminal.
 - [x] **8. CLI adapters and showcase.** Members on your own plan through Claude Code, Codex CLI and Antigravity CLI; a real sample topic; measured costs.
-- [ ] **9. Public ranking chart.** Model rankings from published benchmarks beside your own leaderboard.
+- [x] **9. Public ranking chart.** Public leaderboards beside your own council's verdicts, with prices.
 
 ## Development
 

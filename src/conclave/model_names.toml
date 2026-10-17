@@ -1,0 +1,14 @@
+# Names a ranking source uses for a model, where Conclave's matching cannot work them out.
+#
+# Conclave matches an OpenRouter id such as "anthropic/claude-sonnet-5.5" to a source's name
+# by company and model name, allowing an ending for the reasoning level or build date
+# ("claude-sonnet-5.5-xhigh", "deepseek-v4-pro-high-20260813"). When several of those match,
+# the best-rated one is used and its name is shown. Add a line here when a model is missed or
+# matched wrongly:
+#
+#   [lmarena]
+#   "openrouter/id" = "the name LMArena uses"
+
+[lmarena]
+
+[artificial_analysis]
